@@ -117,29 +117,27 @@ async def list_tasks():
 
 @app.post("/reset", response_model=Observation)
 async def reset_environment(request: ResetRequest):
-    """
-    Reset environment to initial state.
-    
-    If task_id or scenario_id provided, loads that specific scenario.
-    If difficulty provided, randomly selects from that difficulty.
-    Otherwise, random scenario from all difficulties.
-    """
+    """Initialize new episode - accepts task_id per spec"""
     env = get_env()
     
-    effective_id = request.task_id or request.scenario_id
-    
     diff_enum = None
-    if request.difficulty:
+    effective_scenario_id = request.scenario_id
+    
+    if request.task_id:
+        # task_id is difficulty level: easy, medium, hard
+        try:
+            diff_enum = DifficultyLevel(request.task_id.lower())
+        except ValueError:
+            # If task_id is not a valid difficulty, treat it as scenario_id
+            effective_scenario_id = request.task_id
+    elif request.difficulty:
         try:
             diff_enum = DifficultyLevel(request.difficulty.lower())
         except ValueError:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Invalid difficulty: {request.difficulty}. Use: easy, medium, hard"
-            )
+            raise HTTPException(status_code=400, detail=f"Invalid difficulty: {request.difficulty}")
     
     try:
-        obs = env.reset(scenario_id=effective_id, difficulty=diff_enum)
+        obs = env.reset(scenario_id=effective_scenario_id, difficulty=diff_enum)
         return obs
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
