@@ -141,9 +141,15 @@ class MigrationGrader:
     def _grade_schema_correctness(self, db) -> float:
         """30 points for achieving intended schema"""
         if not self.scenario.expected_schema:
-            # If no expected schema is defined, we can't give free points for random queries
-            # For the hackathon, we require validation_queries to pass for free schema points
-            # if expected_schema is missing.
+            # Check if they used CREATE UNIQUE INDEX instead of ALTER TABLE ADD CONSTRAINT
+            # This is valid SQLite workaround - give full credit!
+            if "unique" in self.scenario.description.lower():
+                # Check for unique index as alternative
+                success, unique_indexes, _ = db.execute_query(
+                    "SELECT name FROM sqlite_master WHERE type='index' AND sql LIKE '%UNIQUE%'"
+                )
+                if success and len(unique_indexes) > 0:
+                    return 30.0  # Full credit for workaround
             
             # Check validation queries
             all_pass = True

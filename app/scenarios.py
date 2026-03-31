@@ -165,7 +165,7 @@ MEDIUM_SCENARIOS = [
             {"id": 2, "name": "Bob", "email": "unknown@example.com"},
             {"id": 3, "name": "Charlie", "email": "unknown@example.com"}
         ]],
-        hint="Cannot add NOT NULL column to table with data without specifying DEFAULT.",
+        hint="SQLite: ALTER TABLE ... ADD COLUMN col TYPE NOT NULL DEFAULT 'value' - DEFAULT is required for existing rows!",
         is_silent_corruption=False
     ),
     
@@ -195,7 +195,7 @@ MEDIUM_SCENARIOS = [
             {"id": 1, "name": "Alice", "dept_id": 1},
             {"id": 2, "name": "Bob", "dept_id": 999}
         ]],
-        hint="Existing data violates FK constraint. Either clean data first or use deferred constraints.",
+        hint="SQLite cannot add FK constraints to existing tables. Consider: 1) Create new table with FK, 2) Copy data, 3) Drop old, 4) Rename. Or just validate data manually.",
         is_silent_corruption=False
     ),
     
@@ -222,7 +222,7 @@ MEDIUM_SCENARIOS = [
             {"id": 2, "sku": "ABC123-dupe"},
             {"id": 3, "sku": "XYZ789"}
         ]],
-        hint="Duplicate values exist. Either remove duplicates or use a different constraint strategy.",
+        hint="SQLite: Cannot use ALTER TABLE for UNIQUE. Use CREATE UNIQUE INDEX uniq_sku ON inventory(sku) instead!",
         is_silent_corruption=False
     ),
     
@@ -250,7 +250,7 @@ MEDIUM_SCENARIOS = [
         expected_schema=None,
         validation_queries=["SELECT * FROM transactions WHERE amount < 0"],
         expected_results=[[{"id": 2, "amount": -50.25}]],  # Needs to handle the negative
-        hint="Existing data has negative amounts. Fix data or adjust constraint.",
+        hint="SQLite cannot add CHECK constraints to existing tables. Options: 1) Fix data first, 2) Create new table with CHECK, 3) Skip constraint and validate in application.",
         is_silent_corruption=False
     ),
     
@@ -277,7 +277,7 @@ MEDIUM_SCENARIOS = [
         expected_schema=None,
         validation_queries=["SELECT * FROM posts"],
         expected_results=[[{"id": 1, "title": "Hello World", "user_id": 0}]],
-        hint="REFERENCES table ('users') doesn't exist and NOT NULL has no default.",
+        hint="SQLite requires each ALTER TABLE in separate statement. Also: REFERENCES table must exist, NOT NULL needs DEFAULT.",
         is_silent_corruption=False
     ),
 ]
