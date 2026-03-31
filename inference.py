@@ -190,9 +190,14 @@ RESPOND WITH JSON:
             
         except Exception as e:
             print(f"⚠️ LLM error: {e}")
+            error_msg = f"Error calling LLM: {str(e)}"
+            # Truncate to avoid Pydantic >1000 char validation error
+            if len(error_msg) > 950:
+                error_msg = error_msg[:950] + "... (truncated)"
+                
             return Action(
                 fixed_sql="-- ERROR: Failed to generate fix",
-                explanation=f"Error calling LLM: {str(e)}",
+                explanation=error_msg,
                 confidence=0.0
             )
     
@@ -281,9 +286,12 @@ RESPOND WITH JSON:
             )
         except Exception as e:
             print(f"⚠️ Unexpected parse error: {e}")
+            error_msg = str(e)
+            if len(error_msg) > 950:
+                error_msg = error_msg[:950] + "... (truncated)"
             return Action(
                 fixed_sql="-- Parse error",
-                explanation=str(e),
+                explanation=error_msg,
                 confidence=0.0
             )
 
