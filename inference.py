@@ -210,7 +210,8 @@ RESPOND WITH JSON:
         ]
         
         # Add SQLite-specific guidance for medium/hard
-        if obs.difficulty in ["medium", "hard", DifficultyLevel.MEDIUM, DifficultyLevel.HARD]:
+        difficulty_str = str(obs.difficulty).lower()
+        if "medium" in difficulty_str or "hard" in difficulty_str:
             lines.extend([
                 "",
                 "=== SQLITE LIMITATIONS ===",
