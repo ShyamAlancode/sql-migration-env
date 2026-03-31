@@ -311,24 +311,30 @@ def main():
     # Create agent
     agent = SQLMigrationAgent()
     
-    # Run all 3 tasks as required by spec
+    # Run exactly the 3 benchmark scenarios to eliminate reproducibility issues
+    BENCHMARK_TASKS = {
+        "easy":   "easy_001_missing_comma",
+        "medium": "medium_005_multiple_alter_conflicts",
+        "hard":   "hard_001_update_no_where"
+    }
+    
     scores = {}
     
-    for task_id in ["easy", "medium", "hard"]:
+    for diff, scenario_id in BENCHMARK_TASKS.items():
         print(f"\n{'='*60}")
-        print(f"TASK: {task_id.upper()}")
+        print(f"TASK: {diff.upper()} ({scenario_id})")
         print(f"{'='*60}")
         
-        result = agent.run_episode(task_id=task_id, verbose=True)
+        result = agent.run_episode(task_id=scenario_id, verbose=True)
         
         # Extract final score from last step's grading
         final_score = 0.0
         if result["history"]:
             final_score = result["history"][-1]["grading"]["total_score"] / 100.0
         
-        scores[task_id] = final_score
+        scores[diff] = final_score
         
-        print(f"\n📊 Task {task_id} Final Score: {final_score:.4f}")
+        print(f"\n📊 Task {diff} Final Score: {final_score:.4f}")
     
     # Calculate average
     avg_score = sum(scores.values()) / 3
