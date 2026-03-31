@@ -1,0 +1,15 @@
+name: sql-migration-env
+version: 1.0.0
+description: "SQL Migration Safety Gym. Fix broken SQL migrations for users, products, and orders."
+author: "Antigravity Assistant"
+entrypoint: "python server.py"
+tasks:
+  - id: easy
+    name: "Syntax Typos (users)"
+    description: "Fix a SQL script with syntax errors in a users table migration."
+  - id: medium
+    name: "Constraint Violation (products)"
+    description: "Add NOT NULL columns to a populated products table."
+  - id: hard
+    name: "Silent Corruption (orders)"
+    description: "Prevent data corruption caused by incorrect transactional order in orders discounts."
