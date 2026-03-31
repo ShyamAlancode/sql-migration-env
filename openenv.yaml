@@ -9,7 +9,7 @@ tags:
   - database
   - sql
   - data-engineering
-author: "Shyamalan T"
+author: "ShyamAlancode"  
 entry_point: "app.main:app"
 port: 7860
 tasks:
