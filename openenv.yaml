@@ -1,15 +1,27 @@
 name: sql-migration-env
-version: 1.0.0
-description: "SQL Migration Safety Gym. Fix broken SQL migrations for users, products, and orders."
-author: "Antigravity Assistant"
-entrypoint: "python server.py"
+version: "1.0.0"
+description: >
+  RL environment where an AI agent debugs broken SQL migration
+  scripts before they destroy production data. Features 15
+  progressive scenarios including silent data corruption detection.
+tags:
+  - openenv
+  - database
+  - sql
+  - data-engineering
+author: "Shyamalan T"
+entry_point: "app.main:app"
+port: 7860
 tasks:
   - id: easy
-    name: "Syntax Typos (users)"
-    description: "Fix a SQL script with syntax errors in a users table migration."
+    name: "Fix Syntax Errors"
+    difficulty: easy
+    description: "Repair SQL syntax typos preventing execution"
   - id: medium
-    name: "Constraint Violation (products)"
-    description: "Add NOT NULL columns to a populated products table."
+    name: "Fix Constraint Violations"
+    difficulty: medium
+    description: "Fix NOT NULL columns added without DEFAULT to existing tables"
   - id: hard
-    name: "Silent Corruption (orders)"
-    description: "Prevent data corruption caused by incorrect transactional order in orders discounts."
+    name: "Detect Silent Data Corruption"
+    difficulty: hard
+    description: "Fix UPDATE without WHERE that silently corrupts all rows"

@@ -154,10 +154,27 @@ class SQLMigrationEnv:
         
         return obs, reward, self._done, info
     
-    def state(self) -> Observation:
+    def state(self) -> Dict[str, Any]:
         """
-        Get current state without stepping.
-        Non-destructive observation of current environment.
+        Get current environment state (internal state, not observation).
+        Per OpenEnv spec: returns step count, done flag, history, etc.
+        """
+        if not self._current_scenario_id:
+            raise RuntimeError("Environment not reset. Call reset() first.")
+        
+        return {
+            "task_id": self._current_scenario_id,
+            "step_count": self._step_count,
+            "done": self._done,
+            "max_steps": self.max_steps,
+            "history": self._history,
+            "episode_id": self._episode_id
+        }
+
+    def observation(self) -> Observation:
+        """
+        Get current observation (what agent sees).
+        This is separate from state() per spec.
         """
         if not self._current_scenario_id:
             raise RuntimeError("Environment not reset. Call reset() first.")
@@ -165,9 +182,7 @@ class SQLMigrationEnv:
         scenario = get_scenario(self._current_scenario_id)
         with sandbox_db() as db:
             db.execute_script(scenario.setup_sql)
-            obs = self._build_observation(db, scenario, None)
-            obs.step_count = self._step_count
-            return obs
+            return self._build_observation(db, scenario, None)
     
     def _build_observation(self, db, scenario, error_msg: Optional[str]) -> Observation:
         """Construct observation from current database state"""

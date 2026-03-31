@@ -45,7 +45,8 @@ app.add_middleware(
 
 # Request/Response models for API
 class ResetRequest(BaseModel):
-    scenario_id: Optional[str] = None
+    task_id: Optional[str] = None      # spec-compliant
+    scenario_id: Optional[str] = None  # backward compatibility
     difficulty: Optional[str] = None
 
 class StepRequest(BaseModel):
@@ -108,16 +109,24 @@ async def list_scenarios(difficulty: Optional[str] = None):
     }
 
 
+@app.get("/tasks")
+async def list_tasks():
+    """Alias for /scenarios - spec compliance"""
+    return await list_scenarios()
+
+
 @app.post("/reset", response_model=Observation)
 async def reset_environment(request: ResetRequest):
     """
     Reset environment to initial state.
     
-    If scenario_id provided, loads that specific scenario.
+    If task_id or scenario_id provided, loads that specific scenario.
     If difficulty provided, randomly selects from that difficulty.
     Otherwise, random scenario from all difficulties.
     """
     env = get_env()
+    
+    effective_id = request.task_id or request.scenario_id
     
     diff_enum = None
     if request.difficulty:
@@ -130,7 +139,7 @@ async def reset_environment(request: ResetRequest):
             )
     
     try:
-        obs = env.reset(scenario_id=request.scenario_id, difficulty=diff_enum)
+        obs = env.reset(scenario_id=effective_id, difficulty=diff_enum)
         return obs
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -167,12 +176,18 @@ async def step_environment(request: StepRequest):
         raise HTTPException(status_code=500, detail=f"Step failed: {str(e)}")
 
 
-@app.get("/state", response_model=Observation)
+@app.get("/state")
 async def get_current_state():
-    """Get current observation without taking a step"""
+    """Get current environment state (internal state, not observation)"""
     env = get_env()
     try:
-        return env.state()
+        return {
+            "task_id": env._current_scenario_id,
+            "step_count": env._step_count,
+            "done": env._done,
+            "max_steps": env.max_steps,
+            "history_length": len(env._history)
+        }
     except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
