@@ -86,4 +86,30 @@ UPDATE user_settings SET theme = 'auto', notifications = 0;
 - OpenAI Client (inference.py)
 - Docker + HF Spaces
 
-Built with 🛡️ for the OpenEnv Hackathon 2026
+Built with 🛡️ for the OpenEnv Hackathon 2026.
+
+## 🔬 Technical Innovation
+
+### Silent Corruption Detection
+Traditional SQL graders check for syntax errors. **We check for semantic correctness**:
+
+1. **Pre-migration hash**: SHA-256 of all table contents
+2. **Post-migration validation**: Expected query results vs actual
+3. **Corruption flag**: Set when data changes unexpectedly
+
+This catches bugs that pass syntax checks but destroy data:
+- `UPDATE table SET col=val` (missing WHERE)
+- `INSERT INTO new SELECT * FROM old` (column misalignment)
+- `ALTER TABLE DROP COLUMN` (irreversible data loss)
+
+### Deterministic Grading
+Using SQLite `:memory:` databases ensures:
+- Zero network dependencies
+- Identical execution across runs
+- 100% reproducible scores
+
+### Curriculum Learning Ready
+Environment supports progressive difficulty:
+- Easy: Syntax (agents learn SQL grammar)
+- Medium: Constraints (agents learn schema design)
+- Hard: Corruption (agents learn data integrity)
