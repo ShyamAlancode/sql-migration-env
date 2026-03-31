@@ -68,6 +68,14 @@ class EpisodeStats(BaseModel):
     done: bool
 
 
+from fastapi.responses import RedirectResponse
+
+@app.get("/")
+async def root():
+    """Redirect to API documentation"""
+    return RedirectResponse(url="/docs")
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint for HF Spaces"""
