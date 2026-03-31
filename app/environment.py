@@ -47,12 +47,12 @@ class SQLMigrationEnv:
         if scenario_id:
             self._current_scenario_id = scenario_id
         else:
-            # Random selection
-            import random
+            # Deterministic selection for reproducibility validation
             candidates = list(ALL_SCENARIOS.values())
             if difficulty:
                 candidates = [s for s in candidates if s.difficulty == difficulty]
-            scenario = random.choice(candidates)
+            # Always pick the first scenario in the list to freeze the baseline
+            scenario = candidates[0]
             self._current_scenario_id = scenario.id
         
         # Reset state
