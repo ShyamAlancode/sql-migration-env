@@ -50,6 +50,7 @@ class Observation(BaseModel):
     
     scenario_id: str
     difficulty: DifficultyLevel
+    description: str = Field(..., description="Task description and requirements")
     broken_sql: str = Field(..., description="The buggy migration script")
     error_message: Optional[str] = Field(
         default=None, 

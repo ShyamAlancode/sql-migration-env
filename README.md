@@ -7,109 +7,69 @@ sdk: docker
 pinned: false
 ---
 
-# 🛡️ SQL Migration Safety Gym
-
+# SQL Migration Safety Gym
 **OpenEnv Hackathon 2026 Submission**
 
-An OpenEnv environment where AI agents learn to fix dangerous SQL migration scripts before they corrupt production databases.
+The SQL Migration Safety Gym is a deterministic reinforcement learning environment designed to evaluate and train AI agents in the detection and remediation of high-risk database migrations. It provides 15 structured scenarios ranging from syntax errors to silent data corruption, ensuring that agents can maintain data integrity in production-critical workflows.
 
-## 🎯 Mission
+## Mission Overview
+Database migrations are high-stakes operations where failure can lead to catastrophic data loss or prolonged system downtime. This environment provides a standardized "Gym" where agents must analyze broken SQL migrations and propose verified fixes that preserve schema integrity and row-level data.
 
-Database migrations are high-risk operations. A single bad migration can:
-- Delete production data
-- Lock tables for hours  
-- Corrupt records silently (worst case)
+## Key Technical Features
+- **15 Scenarios**: Categorized into Easy (Syntax), Medium (Constraints), and Hard (Semantic/Silent Corruption).
+- **Silent Corruption Detection**: Advanced validation logic that identifies semantic errors—such as missing WHERE clauses—that pass standard SQL syntax checks but destroy data.
+- **Deterministic Evaluation Engine**: Utilizes an isolated SQLite3 memory-based grader to ensure 100% reproducible scoring without external dependencies.
+- **OpenEnv Specification Compliance**: Implements the standard `reset()`, `step()`, and `state()` API interfaces.
 
-This environment trains AI agents to review, analyze, and fix broken migrations with **deterministic safety guarantees**.
+## Quick Start Technical Guide
 
-## 🏆 Key Features
+### Local Development and Testing
+1. **Dependency Installation**:
+   ```bash
+   pip install -r requirements.txt
+   pip install -e .
+   ```
 
-- **15 Test Scenarios**: 5 Easy (syntax), 5 Medium (constraints), 5 Hard (silent corruption)
-- **Silent Corruption Detection**: Hard mode tests catch UPDATE-without-WHERE and data scrambling bugs that defeat GPT-4o
-- **Deterministic Grading**: Pure sqlite3 grading engine (25% of hackathon score)
-- **OpenEnv Compliant**: Full `reset()` / `step()` / `state()` API
+2. **Server Execution**:
+   ```bash
+   uvicorn server.app:app --host 0.0.0.0 --port 7860
+   ```
 
-## 🚀 Quick Start
-
-### Local Development
-
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Start server
-uvicorn app.main:app --host 0.0.0.0 --port 7860
-
-# Test health
-curl http://localhost:7860/health
-
-# Run inference (requires OPENAI_API_KEY)
-python inference.py
-```
+3. **Performance Audit**:
+   ```bash
+   python test_submission.py
+   ```
 
 ### Docker Deployment
+The environment is containerized for seamless deployment to Hugging Face Spaces or private infrastructure.
 
 ```bash
-# Build
-docker build -t sql-migration-env .
-
-# Run
-docker run -p 7860:7860 -e OPENAI_API_KEY=$OPENAI_API_KEY sql-migration-env
+docker build -t sql-migration-gym .
+docker run -p 7860:7860 -e OPENAI_API_KEY=$OPENAI_API_KEY sql-migration-gym
 ```
 
-## 📡 API Endpoints
+## API Specification
 
-| Endpoint     | Method | Description             |
-| ------------ | ------ | ----------------------- |
-| `/health`    | GET    | Health check            |
-| `/reset`     | POST   | Start new episode       |
-| `/step`      | POST   | Execute action          |
-| `/state`     | GET    | Current observation     |
-| `/stats`     | GET    | Episode statistics      |
-| `/scenarios` | GET    | List test scenarios     |
-| `/spec`      | GET    | OpenEnv compliance info |
+| Endpoint | Method | Functional Description |
+| :--- | :--- | :--- |
+| `/health` | GET | Operational health status monitoring. |
+| `/reset` | POST | Initialization of a new task or episode. |
+| `/step` | POST | Execution of an agent-provided SQL action. |
+| `/state` | GET | Telemetry regarding the current environment state. |
+| `/scenarios`| GET | Inventory of available test cases and metadata. |
+| `/spec` | GET | OpenEnv v1 compliance identification. |
 
+## Scientific Innovation: Semantic Validation
+Traditional SQL graders typically verify syntax or final schema state. This environment introduces **Semantic Row Hashing**:
+1. **Pre-Snapshot**: The environment captures a SHA-256 hash of all table content before the migration.
+2. **Execution**: The agent's proposed fix is applied to a sandbox clone.
+3. **Integrity Audit**: The grader compares the post-fix results against expected outcomes.
+4. **Corruption Flag**: If the agent's SQL affects rows that should have remained untouched (e.g., global updates), the `is_silent_corruption` flag is triggered, resulting in a significant penalty.
 
-## 🔍 Silent Corruption Examples
-Hard Mode Scenario: `hard_001_update_no_where`
+## Technical Requirements
+- Python 3.11+
+- FastAPI / Pydantic v2
+- SQLite3
+- Docker (for deployment)
 
-Broken SQL:
-```sql
-UPDATE user_settings SET theme = 'auto', notifications = 0;
-```
-*Missing WHERE clause! Updates ALL users instead of just user_id=1. Agent must detect this and add WHERE user_id = 1 to prevent mass corruption.*
-
-## 📝 Tech Stack
-- Python 3.11
-- FastAPI + Pydantic v2
-- SQLite3 (deterministic grading)
-- OpenAI Client (inference.py)
-- Docker + HF Spaces
-
-Built with 🛡️ for the OpenEnv Hackathon 2026.
-
-## 🔬 Technical Innovation
-
-### Silent Corruption Detection
-Traditional SQL graders check for syntax errors. **We check for semantic correctness**:
-
-1. **Pre-migration hash**: SHA-256 of all table contents
-2. **Post-migration validation**: Expected query results vs actual
-3. **Corruption flag**: Set when data changes unexpectedly
-
-This catches bugs that pass syntax checks but destroy data:
-- `UPDATE table SET col=val` (missing WHERE)
-- `INSERT INTO new SELECT * FROM old` (column misalignment)
-- `ALTER TABLE DROP COLUMN` (irreversible data loss)
-
-### Deterministic Grading
-Using SQLite `:memory:` databases ensures:
-- Zero network dependencies
-- Identical execution across runs
-- 100% reproducible scores
-
-### Curriculum Learning Ready
-Environment supports progressive difficulty:
-- Easy: Syntax (agents learn SQL grammar)
-- Medium: Constraints (agents learn schema design)
-- Hard: Corruption (agents learn data integrity)
+Developed for the OpenEnv Hackathon 2026.

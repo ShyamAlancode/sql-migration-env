@@ -9,7 +9,7 @@ import time
 import requests
 from typing import Optional, Dict, Any
 from openai import OpenAI
-from app.models import Action, Observation
+from app.models import Action, Observation, DifficultyLevel
 
 
 # REQUIRED ENVIRONMENT VARIABLES (exact names per spec)
@@ -215,8 +215,7 @@ RESPOND WITH JSON:
         ]
         
         # Add SQLite-specific guidance for medium/hard
-        difficulty_str = str(obs.difficulty).lower()
-        if "medium" in difficulty_str or "hard" in difficulty_str:
+        if obs.difficulty in [DifficultyLevel.MEDIUM, DifficultyLevel.HARD]:
             lines.extend([
                 "",
                 "=== SQLITE LIMITATIONS ===",

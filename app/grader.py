@@ -63,6 +63,7 @@ class MigrationGrader:
             schema_score = self._grade_schema_correctness(db)
             efficiency_score = self._grade_efficiency(action.fixed_sql)
             
+            # Weighted total: 10 + 45 + 35 + 10 = 100
             total = syntax_score + data_score + schema_score + efficiency_score
             
             feedback = self._generate_feedback(
@@ -91,67 +92,48 @@ class MigrationGrader:
         return data
     
     def _grade_syntax(self, success: bool, error: str | None) -> float:
-        """20 points for valid SQL execution"""
-        return 20.0 if success else 0.0
+        """10 points for valid SQL execution without crash"""
+        return 10.0 if success else 0.0
     
     def _grade_data_integrity(
         self, db, pre_data: Dict, post_data: Dict, 
         pre_hash: str, post_hash: str
     ) -> Tuple[float, bool]:
         """
-        40 points for preserving existing data.
-        CRITICAL for HARD mode (silent corruption detection).
+        45 points for preserving and verifying data integrity.
+        Uses scenario-specific validation queries even for Easy/Medium.
         """
-        if not self.scenario.is_silent_corruption:
-            # Standard mode: Check that we didn't lose rows
-            score = 40.0
-            for table, pre_rows in pre_data.items():
-                post_rows = post_data.get(table, [])
-                if len(post_rows) < len(pre_rows):
-                    # Data loss!
-                    loss_ratio = (len(pre_rows) - len(post_rows)) / len(pre_rows)
-                    score -= 40.0 * loss_ratio
-            return max(0.0, score), False
+        # Execute validation queries and compare to expected results
+        all_pass = True
+        for i, query in enumerate(self.scenario.validation_queries):
+            success, actual_rows, _ = db.execute_query(query)
+            if not success:
+                all_pass = False
+                continue
+            
+            expected_rows = self.scenario.expected_results[i]
+            if not self._rows_match(actual_rows, expected_rows):
+                all_pass = False
+        
+        # Check if internal data changed (for corruption detection)
+        corruption_detected = (pre_hash != post_hash)
+        
+        if all_pass:
+            return 45.0, corruption_detected
         else:
-            # HARD MODE: Silent corruption detection
-            # The scenario setup is designed so that the BROKEN SQL corrupts data
-            # The FIXED SQL should restore/prevent corruption
+            # If standard modes lost rows or check failed, significant penalty
+            # Only give partial credit if row count matches but content is wrong
+            row_count_match = True
+            for table, pre_rows in pre_data.items():
+                if len(post_data.get(table, [])) != len(pre_rows):
+                    row_count_match = False
             
-            # Check if validation queries pass
-            all_pass = True
-            for i, query in enumerate(self.scenario.validation_queries):
-                success, actual_rows, _ = db.execute_query(query)
-                if not success:
-                    all_pass = False
-                    continue
-                
-                expected_rows = self.scenario.expected_results[i]
-                if not self._rows_match(actual_rows, expected_rows):
-                    all_pass = False
-            
-            # Also check hash changed appropriately
-            corruption_detected = (pre_hash != post_hash)
-            
-            if all_pass:
-                return 40.0, corruption_detected
-            else:
-                # Partial credit if some data preserved
-                return 10.0, corruption_detected
+            return (15.0 if row_count_match else 0.0), corruption_detected
     
     def _grade_schema_correctness(self, db) -> float:
-        """30 points for achieving intended schema"""
+        """35 points for achieving the intended schema"""
         if not self.scenario.expected_schema:
-            # Check if they used CREATE UNIQUE INDEX instead of ALTER TABLE ADD CONSTRAINT
-            # This is valid SQLite workaround - give full credit!
-            if "unique" in self.scenario.description.lower():
-                # Check for unique index as alternative
-                success, unique_indexes, _ = db.execute_query(
-                    "SELECT name FROM sqlite_master WHERE type='index' AND sql LIKE '%UNIQUE%'"
-                )
-                if success and len(unique_indexes) > 0:
-                    return 30.0  # Full credit for workaround
-            
-            # Check validation queries
+            # Fallback to validation query verification if no explicit schema provided
             all_pass = True
             for i, query in enumerate(self.scenario.validation_queries):
                 success, actual_rows, _ = db.execute_query(query)
@@ -161,27 +143,25 @@ class MigrationGrader:
                 expected_rows = self.scenario.expected_results[i]
                 if not self._rows_match(actual_rows, expected_rows):
                     all_pass = False
-                    
-            return 30.0 if all_pass else 0.0
+            return 35.0 if all_pass else 0.0
 
-        # Compare actual schema to expected
+        # High-fidelity schema comparison
         actual = db.get_schema_info(self.scenario.expected_schema.table_name)
         if not actual:
             return 0.0
         
-        score = 30.0
-        
-        # Check columns match
         expected_cols = {(c["name"], str(c["type"]).upper()) for c in self.scenario.expected_schema.columns}
         actual_cols = {(c["name"], str(c["type"]).upper()) for c in actual["columns"]}
         
-        if expected_cols != actual_cols:
+        if expected_cols == actual_cols:
+            return 35.0
+        else:
+            # Penalize missing or mismatched columns aggressively
             missing = expected_cols - actual_cols
             extra = actual_cols - expected_cols
-            penalty = min(30.0, (len(missing) + len(extra)) * 10) # increase penalty
-            score -= penalty
-        
-        return max(0.0, score)
+            if missing:
+                return 0.0  # Zero tolerance for missing columns
+            return 15.0  # Extra columns are a minor penalty
     
     def _grade_efficiency(self, sql: str) -> float:
         """10 points for efficient SQL (no redundant ops, proper syntax)"""
