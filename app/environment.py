@@ -186,6 +186,7 @@ class SQLMigrationEnv:
         return Observation(
             scenario_id=scenario.id,
             difficulty=scenario.difficulty,
+            description=scenario.description,
             broken_sql=scenario.broken_migration,
             error_message=error_msg,
             current_schema=current_schema,
