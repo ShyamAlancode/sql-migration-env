@@ -1,53 +1,24 @@
 """
 FastAPI server for SQL Migration Safety Gym
-Exposes OpenEnv API over HTTP for HF Spaces deployment
+OpenEnv Hackathon 2026 - Spec Compliant Version
 """
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from typing import Optional
 from pydantic import BaseModel
 
-from app.models import Action, Observation, DifficultyLevel
+from app.models import Action, Observation, DifficultyLevel, GradingResult
 from app.environment import SQLMigrationEnv, get_env
 from app.scenarios import ALL_SCENARIOS
 
 
-# Lifespan context manager for startup/shutdown
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Startup and shutdown events"""
-    print("Starting SQL Migration Safety Gym server...")
-    # Initialize environment
-    env = get_env()
-    print(f"Environment ready with {len(ALL_SCENARIOS)} scenarios")
-    yield
-    print("Shutting down server...")
-
-
-app = FastAPI(
-    title="SQL Migration Safety Gym",
-    description="OpenEnv environment for training AI agents to fix SQL migrations",
-    version="1.0.0",
-    lifespan=lifespan
-)
-
-# CORS for HF Spaces and local development
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # HF Spaces requirement
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-# Request/Response models for API
+# Request/Response models
 class ResetRequest(BaseModel):
-    task_id: Optional[str] = None      # spec-compliant
-    scenario_id: Optional[str] = None  # backward compatibility
-    difficulty: Optional[str] = None
+    task_id: Optional[str] = None      # Primary: spec-compliant
+    scenario_id: Optional[str] = None  # Backward compatibility
+    difficulty: Optional[str] = None   # Alternative
 
 class StepRequest(BaseModel):
     fixed_sql: str
@@ -60,21 +31,32 @@ class StepResponse(BaseModel):
     done: bool
     info: dict
 
-class EpisodeStats(BaseModel):
-    episode_id: str
-    scenario_id: str
-    total_steps: int
-    total_reward: float
-    average_score: float
-    done: bool
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup and shutdown events"""
+    print("🚀 Starting SQL Migration Safety Gym server...")
+    env = get_env()
+    print(f"✅ Environment ready with {len(ALL_SCENARIOS)} scenarios")
+    yield
+    print("🛑 Shutting down server...")
 
 
-from fastapi.responses import RedirectResponse
+app = FastAPI(
+    title="SQL Migration Safety Gym",
+    description="OpenEnv environment for training AI agents to fix SQL migrations",
+    version="1.0.0",
+    lifespan=lifespan
+)
 
-@app.get("/")
-async def root():
-    """Redirect to API documentation"""
-    return RedirectResponse(url="/docs")
+# CORS for HF Spaces
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
@@ -83,7 +65,8 @@ async def health_check():
     return {
         "status": "healthy",
         "scenarios_available": len(ALL_SCENARIOS),
-        "difficulties": ["easy", "medium", "hard"]
+        "difficulties": ["easy", "medium", "hard"],
+        "version": "1.0.0"
     }
 
 
@@ -91,7 +74,6 @@ async def health_check():
 async def list_scenarios(difficulty: Optional[str] = None):
     """List available migration scenarios"""
     scenarios = list(ALL_SCENARIOS.values())
-    
     if difficulty:
         scenarios = [s for s in scenarios if s.difficulty.value == difficulty]
     
@@ -111,36 +93,34 @@ async def list_scenarios(difficulty: Optional[str] = None):
 
 @app.get("/tasks")
 async def list_tasks():
-    """Alias for /scenarios - spec compliance"""
+    """Alias for /scenarios - OpenEnv spec compliance"""
     return await list_scenarios()
 
 
-@app.post("/reset", response_model=Observation)
-async def reset_environment(
-    task_id: Optional[str] = None,
-    request: Optional[ResetRequest] = None
-):
-    """Initialize new episode - accepts task_id per spec"""
+@app.post("/reset")
+async def reset_environment(request: ResetRequest):
+    """
+    Reset environment to initial state.
+    Accepts task_id (easy/medium/hard) per OpenEnv spec.
+    """
     env = get_env()
     
+    # Priority: task_id > scenario_id > difficulty
     diff_enum = None
-    effective_scenario_id = request.scenario_id if request else None
+    effective_scenario_id = request.scenario_id
     
-    req_task = task_id or (request.task_id if request else None)
-    req_diff = request.difficulty if request else None
-    
-    if req_task:
+    if request.task_id:
         # task_id is difficulty level: easy, medium, hard
         try:
-            diff_enum = DifficultyLevel(req_task.lower())
+            diff_enum = DifficultyLevel(request.task_id.lower())
         except ValueError:
-            # If task_id is not a valid difficulty, treat it as scenario_id
-            effective_scenario_id = req_task
-    elif req_diff:
+            # If not a valid difficulty, treat as scenario_id
+            effective_scenario_id = request.task_id
+    elif request.difficulty:
         try:
-            diff_enum = DifficultyLevel(req_diff.lower())
+            diff_enum = DifficultyLevel(request.difficulty.lower())
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid difficulty: {req_diff}")
+            raise HTTPException(status_code=400, detail=f"Invalid difficulty: {request.difficulty}")
     
     try:
         obs = env.reset(scenario_id=effective_scenario_id, difficulty=diff_enum)
@@ -153,11 +133,7 @@ async def reset_environment(
 
 @app.post("/step", response_model=StepResponse)
 async def step_environment(request: StepRequest):
-    """
-    Execute one step in the environment.
-    
-    Agent provides fixed SQL and receives observation, reward, and done flag.
-    """
+    """Execute one step in the environment"""
     env = get_env()
     
     action = Action(
@@ -182,31 +158,56 @@ async def step_environment(request: StepRequest):
 
 @app.get("/state")
 async def get_current_state():
-    """Get current environment state (internal state, not observation)"""
+    """
+    Get current INTERNAL STATE (not observation).
+    Returns: episode_id, step_count, done, history, etc.
+    """
     env = get_env()
     try:
-        return {
-            "task_id": env._current_scenario_id,
-            "step_count": env._step_count,
-            "done": env._done,
-            "max_steps": env.max_steps,
-            "history_length": len(env._history)
-        }
+        return env.state()
     except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.get("/stats", response_model=EpisodeStats)
+@app.get("/observation")
+async def get_current_observation():
+    """
+    Get current AGENT OBSERVATION (what agent sees).
+    Returns: broken_sql, schema, sample_data, hints.
+    """
+    env = get_env()
+    try:
+        return env.observation()
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/stats")
 async def get_episode_stats():
     """Get statistics for current episode"""
     env = get_env()
     stats = env.get_episode_stats()
     if not stats:
         raise HTTPException(status_code=404, detail="No active episode. Call /reset first.")
-    return EpisodeStats(**stats)
+    return stats
 
 
-# OpenEnv spec compliance verification endpoint
+@app.get("/metrics")
+async def get_metrics():
+    """Prometheus-compatible metrics for production monitoring"""
+    env = get_env()
+    state = env.state()
+    
+    return {
+        "openenv_steps_total": state.get("step_count", 0),
+        "openenv_episodes_total": 1 if state.get("episode_id") else 0,
+        "openenv_active_sessions": 1 if not state.get("done", True) else 0,
+        "openenv_errors_total": 0,  # Track if you add error counting
+        "scenarios_available": len(ALL_SCENARIOS),
+        "version": "1.0.0"
+    }
+
+
 @app.get("/spec")
 async def spec_compliance():
     """Verify OpenEnv API compliance"""
@@ -214,17 +215,21 @@ async def spec_compliance():
         "api_version": "openenv-v1",
         "endpoints": {
             "reset": "/reset (POST)",
-            "step": "/step (POST)", 
-            "state": "/state (GET)"
+            "step": "/step (POST)",
+            "state": "/state (GET)",
+            "observation": "/observation (GET)",
+            "tasks": "/tasks (GET)",
+            "metrics": "/metrics (GET)"
         },
         "environment": "SQLMigrationEnv",
         "observation_space": "Observation (Pydantic)",
         "action_space": "Action (Pydantic)",
-        "reward_range": [0.0, 1.1],  # 0-1 + bonus
-        "max_episode_steps": 5
+        "reward_range": [0.0, 1.1],
+        "max_episode_steps": 5,
+        "compliance": "RFC 001, 002, 003"
     }
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=7860)  # HF Spaces default port
+    uvicorn.run(app, host="0.0.0.0", port=7860)

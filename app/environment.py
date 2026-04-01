@@ -1,6 +1,6 @@
 """
 Core OpenEnv Environment for SQL Migration Safety Gym
-Implements: reset(), step(), state() API
+Implements: reset(), step(), state(), observation() API per RFC 001
 """
 
 from typing import Tuple, Dict, Any, Optional
@@ -14,11 +14,7 @@ import uuid
 class SQLMigrationEnv:
     """
     OpenEnv-compliant environment for SQL migration fixing.
-    
-    Usage:
-        env = SQLMigrationEnv()
-        obs = env.reset(scenario_id="easy_001")
-        obs, reward, done, info = env.step(action)
+    Strict separation of state() vs observation() per spec.
     """
     
     def __init__(self, max_steps: int = 5):
@@ -35,59 +31,40 @@ class SQLMigrationEnv:
               difficulty: Optional[DifficultyLevel] = None) -> Observation:
         """
         Reset environment to initial state.
-        
-        Args:
-            scenario_id: Specific scenario to load (random if None)
-            difficulty: Filter scenarios by difficulty (random if None)
-            
-        Returns:
-            Initial observation
+        Returns: Initial observation (what agent sees)
         """
         # Select scenario
         if scenario_id:
             self._current_scenario_id = scenario_id
         else:
-            # Deterministic selection for reproducibility validation
+            import random
             candidates = list(ALL_SCENARIOS.values())
             if difficulty:
                 candidates = [s for s in candidates if s.difficulty == difficulty]
-            # Always pick the first scenario in the list to freeze the baseline
-            scenario = candidates[0]
+            scenario = random.choice(candidates)
             self._current_scenario_id = scenario.id
         
-        # Reset state
+        # Reset internal state
         self._step_count = 0
         self._done = False
         self._history = []
         self._episode_id = str(uuid.uuid4())
         self._last_grading_result = None
         
-        # Initialize database for observation generation
+        # Generate and return observation
         scenario = get_scenario(self._current_scenario_id)
         with sandbox_db() as db:
             db.execute_script(scenario.setup_sql)
-            
-            # Try running broken migration to capture error
             success, error = db.execute_script(scenario.broken_migration)
             error_msg = error if not success else None
-            
-            # Capture state
-            self._current_db_hash = db.compute_hash()
-            
-            # Build observation
             obs = self._build_observation(db, scenario, error_msg)
             
         return obs
     
     def step(self, action: Action) -> Tuple[Observation, float, bool, Dict[str, Any]]:
         """
-        Execute one step in the environment.
-        
-        Args:
-            action: Agent's proposed fix
-            
-        Returns:
-            Tuple of (observation, reward, done, info)
+        Execute one step.
+        Returns: (observation, reward, done, info)
         """
         if self._done:
             raise RuntimeError("Episode is done. Call reset() to start new episode.")
@@ -95,37 +72,30 @@ class SQLMigrationEnv:
         if not self._current_scenario_id:
             raise RuntimeError("Environment not reset. Call reset() first.")
         
-        # Get scenario and grade action
+        # Grade action
         scenario = get_scenario(self._current_scenario_id)
         grader = MigrationGrader(scenario)
         grading_result = grader.grade(action)
         self._last_grading_result = grading_result
         
-        # Calculate reward (0-100 scale normalized to 0-1, or keep as 0-100)
+        # Calculate reward (0-1 scale)
         reward = grading_result.total_score / 100.0
-        
-        # Bonus for silent corruption detection
         if (scenario.is_silent_corruption and 
-            grading_result.silent_corruption_detected and 
             grading_result.data_integrity_score >= 40):
             reward += 0.1
-        
-        # Efficiency penalty per step (small)
-        reward -= 0.01
-        
-        # Clamp reward
         reward = max(0.0, min(1.0, reward))
+        reward = round(reward, 4)  # Round for cleaner output
         
-        # Increment step
+        # Update internal state
         self._step_count += 1
         
-        # Check termination conditions
+        # Check termination
         if grading_result.total_score >= 95:
-            self._done = True  # Perfect fix
+            self._done = True
         elif self._step_count >= self.max_steps:
-            self._done = True  # Max steps reached
+            self._done = True
         
-        # Record history
+        # Record in history
         self._history.append({
             "step": self._step_count,
             "action": action.model_dump(),
@@ -135,14 +105,9 @@ class SQLMigrationEnv:
         
         # Generate next observation
         with sandbox_db() as db:
-            # Re-setup database for clean observation (or keep state?)
-            # For migration tasks, we reset to show current state
             db.execute_script(scenario.setup_sql)
-            
-            # If we wanted to simulate progressive fixing, we'd apply action here
-            # But for this env, each step is independent evaluation
-            
-            obs = self._build_observation(db, scenario, None)  # No error on observation
+            obs = self._build_observation(db, scenario, None)
+            obs.step_count = self._step_count
         
         info = {
             "episode_id": self._episode_id,
@@ -156,25 +121,38 @@ class SQLMigrationEnv:
     
     def state(self) -> Dict[str, Any]:
         """
-        Get current environment state (internal state, not observation).
-        Per OpenEnv spec: returns step count, done flag, history, etc.
+        Return INTERNAL STATE (not observation).
+        Per OpenEnv spec: episode metadata, step count, done flag, history.
+        Used by environment tracking, NOT shown to agent.
         """
-        if not self._current_scenario_id:
-            raise RuntimeError("Environment not reset. Call reset() first.")
+        if not self._episode_id:
+            return {
+                "episode_id": None,
+                "task_id": None,
+                "step_count": 0,
+                "max_steps": self.max_steps,
+                "done": False,
+                "history_length": 0,
+                "total_reward": 0.0
+            }
+        
+        total_reward = sum(h["reward"] for h in self._history)
         
         return {
+            "episode_id": self._episode_id,
             "task_id": self._current_scenario_id,
             "step_count": self._step_count,
-            "done": self._done,
             "max_steps": self.max_steps,
-            "history": self._history,
-            "episode_id": self._episode_id
+            "done": self._done,
+            "history_length": len(self._history),
+            "total_reward": round(total_reward, 4),
+            "last_score": self._history[-1]["grading"]["total_score"] if self._history else 0.0
         }
-
+    
     def observation(self) -> Observation:
         """
-        Get current observation (what agent sees).
-        This is separate from state() per spec.
+        Return AGENT OBSERVATION (what agent sees).
+        Per OpenEnv spec: broken_sql, schema, sample_data, hints.
         """
         if not self._current_scenario_id:
             raise RuntimeError("Environment not reset. Call reset() first.")
@@ -182,11 +160,12 @@ class SQLMigrationEnv:
         scenario = get_scenario(self._current_scenario_id)
         with sandbox_db() as db:
             db.execute_script(scenario.setup_sql)
-            return self._build_observation(db, scenario, None)
+            obs = self._build_observation(db, scenario, None)
+            obs.step_count = self._step_count
+            return obs
     
     def _build_observation(self, db, scenario, error_msg: Optional[str]) -> Observation:
-        """Construct observation from current database state"""
-        # Get table info (assume first table is main table)
+        """Construct observation from database state"""
         tables = db.get_table_names()
         current_schema = None
         sample_data = None
@@ -199,9 +178,6 @@ class SQLMigrationEnv:
                 from app.models import SchemaInfo
                 current_schema = SchemaInfo(**current_schema_data)
             sample_data = db.get_sample_data(main_table, limit=5)
-            
-            # For "previous" schema, we'd need to track this across steps
-            # For now, same as current or None
             previous_schema = current_schema
         
         # Hint only for easy mode
@@ -210,7 +186,6 @@ class SQLMigrationEnv:
         return Observation(
             scenario_id=scenario.id,
             difficulty=scenario.difficulty,
-            description=scenario.description,
             broken_sql=scenario.broken_migration,
             error_message=error_msg,
             current_schema=current_schema,
@@ -231,16 +206,16 @@ class SQLMigrationEnv:
         
         return {
             "episode_id": self._episode_id,
-            "scenario_id": self._current_scenario_id,
+            "task_id": self._current_scenario_id,
             "total_steps": self._step_count,
-            "total_reward": total_reward,
-            "average_score": avg_score,
+            "total_reward": round(total_reward, 4),
+            "average_score": round(avg_score, 2),
             "history": self._history,
             "done": self._done
         }
 
 
-# Global environment instance (for HF Spaces stateful deployment)
+# Global environment instance
 _env_instance: Optional[SQLMigrationEnv] = None
 
 def get_env() -> SQLMigrationEnv:

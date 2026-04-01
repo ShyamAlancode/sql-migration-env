@@ -1,27 +1,36 @@
 name: sql-migration-env
 version: "1.0.0"
 description: >
-  RL environment where an AI agent debugs broken SQL migration
-  scripts before they destroy production data. Features 15
-  progressive scenarios including silent data corruption detection.
+  OpenEnv RL environment where AI agents learn to fix dangerous SQL 
+  migration scripts before they corrupt production databases. Features 
+  15 progressive scenarios including silent data corruption detection 
+  via SHA-256 hashing and deterministic SQLite grading.
+author: "ShyamAlancode"
+entry_point: "app.main:app"
+port: 7860
 tags:
   - openenv
   - database
   - sql
   - data-engineering
-author: "ShyamAlancode"  
-entry_point: "app.main:app"
-port: 7860
+  - rl-environment
+
 tasks:
   - id: easy
     name: "Fix Syntax Errors"
     difficulty: easy
-    description: "Repair SQL syntax typos preventing execution"
+    description: "Repair SQL syntax errors (missing commas, typos, unclosed quotes)"
   - id: medium
     name: "Fix Constraint Violations"
     difficulty: medium
-    description: "Fix NOT NULL columns added without DEFAULT to existing tables"
+    description: "Handle NOT NULL without DEFAULT, FK violations, UNIQUE conflicts"
   - id: hard
     name: "Detect Silent Data Corruption"
     difficulty: hard
-    description: "Fix UPDATE without WHERE that silently corrupts all rows"
+    description: "Fix UPDATE without WHERE, column misalignment, precision loss"
+
+environment:
+  type: docker
+  python_version: "3.11"
+  dependencies: requirements.txt
+  health_check: "/health"
