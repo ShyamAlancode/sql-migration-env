@@ -177,9 +177,11 @@ async def step_environment(request: StepRequest):
     
     try:
         obs, reward, done, info = env.step(action)
+        # SPEC COMPLIANCE: Normalize reward from 0-100 to 0.0-1.0
+        reward_normalized = round(reward / 100.0, 4)
         return StepResponse(
             observation=obs,
-            reward=reward,
+            reward=reward_normalized,
             done=done,
             info=info
         )
