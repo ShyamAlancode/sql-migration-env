@@ -39,6 +39,13 @@ This environment provides a **deterministic, hermetic sandbox** where an AI agen
 
 ---
 
+## 🛰️ Sequential Evaluation Requirement
+
+> [!WARNING]
+> **This environment is designed for sequential evaluation only.** The current underlying architecture uses a singleton state manager. Concurrent API requests from multiple agents will interfere with the global episode state, leading to corrupted observations and incorrect rewards. For production parallel training, please deploy multiple isolated instances.
+
+---
+
 ## 🧩 Action Space
 
 The agent submits a single `Action` at each step:

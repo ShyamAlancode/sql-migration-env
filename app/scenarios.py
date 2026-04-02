@@ -349,8 +349,8 @@ HARD_SCENARIOS = [
                 (2, 'Gadget', 29.99, 'Electronics');
         """,
         broken_migration="""
-            INSERT INTO new_products (id, name, price, category)
-            SELECT id, name, price, category FROM old_products;
+            -- Intention: Migrate all data to the new product table schema
+            INSERT INTO new_products SELECT * FROM old_products;
         """,
         expected_schema=None,
         validation_queries=["SELECT * FROM new_products ORDER BY id"],
@@ -566,7 +566,6 @@ HARD_SCENARIOS = [
         is_silent_corruption=True
     ),
     
-    # hard_009: Circular FK Dependency (The "Impossible" Task)
     MigrationScenario(
         id="hard_009_circular_fk_dependency",
         difficulty=DifficultyLevel.HARD,
@@ -583,20 +582,18 @@ HARD_SCENARIOS = [
                 (3, 'Charlie', 2);
         """,
         broken_migration="""
-            -- Intention: Enforce managers are valid employees
             ALTER TABLE employees ADD FOREIGN KEY (manager_id) REFERENCES employees(id);
         """,
         validation_queries=[
             "PRAGMA foreign_key_check(employees)"
         ],
         expected_results=[
-            []  # No FK violations if fixed correctly
+            []
         ],
         hint=None,
         is_silent_corruption=True
     ),
 
-    # hard_010: Hidden Data Loss (Type Truncation)
     MigrationScenario(
         id="hard_010_hidden_data_loss",
         difficulty=DifficultyLevel.HARD,
@@ -610,12 +607,11 @@ HARD_SCENARIOS = [
             INSERT INTO telemetry (sensor_id, reading_value) VALUES 
                 ('S1', '10.5'),
                 ('S2', '20.1'),
-                ('S3', 'N/A'),  -- THE STUB
+                ('S3', 'N/A'),
                 ('S4', '15.7'),
-                ('S5', 'MISSING'); -- ANOTHER STUB
+                ('S5', 'MISSING');
         """,
         broken_migration="""
-            -- Intention: Convert reading_value to REAL for analytics
             CREATE TABLE new_telemetry (id INTEGER PRIMARY KEY, sensor_id TEXT, reading_value REAL);
             INSERT INTO new_telemetry SELECT * FROM telemetry;
             DROP TABLE telemetry;
@@ -625,13 +621,12 @@ HARD_SCENARIOS = [
             "SELECT SUM(reading_value) as total FROM telemetry"
         ],
         expected_results=[
-            [{"total": 44.3}]  # sum of [10.5, 20.1, -1.0, 15.7, -1.0]
+            [{"total": 44.3}]
         ],
         hint=None,
         is_silent_corruption=True
     ),
 
-    # hard_011: The Invisible Constraint (Self-referencing FK)
     MigrationScenario(
         id="hard_011_invisible_fk_conflict",
         difficulty=DifficultyLevel.HARD,
@@ -649,9 +644,6 @@ HARD_SCENARIOS = [
                 (3, 'Gaming Laptops', 2);
         """,
         broken_migration="""
-            -- Intention: Add a 'slug' column to the top of the table
-            -- Bug: SQLite cannot ALTER TABLE with self-referencing FKs in some modes.
-            -- This simple ADD COLUMN might fail if PRAGMA foreign_key_check is active.
             ALTER TABLE categories ADD COLUMN slug TEXT;
         """,
         validation_queries=[
@@ -664,65 +656,6 @@ HARD_SCENARIOS = [
         is_silent_corruption=True
     ),
 
-    # hard_012: The Ambiguous Truncation (Join Overlap)
-    MigrationScenario(
-        id="hard_012_ambiguous_join_corruption",
-        difficulty=DifficultyLevel.HARD,
-        description="Update join on overlapping column names corrupts wrong records without aliasing",
-        setup_sql="""
-            CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT);
-            CREATE TABLE profile (id INTEGER PRIMARY KEY, user_id INTEGER, bio TEXT);
-            INSERT INTO users (id, email) VALUES (1, 'alice@example.com'), (2, 'bob@example.com');
-            INSERT INTO profile (id, user_id, bio) VALUES (101, 1, 'Dev'), (102, 2, 'Ops');
-        """,
-        broken_migration="""
-            -- Intention: Synchronize user IDs or clean profile.user_id
-            -- Bug: The following join is ambiguous if both have 'id'
-            -- Update will corrupt profile.user_id if it matches profile.id instead of profile.user_id
-            UPDATE profile SET user_id = (SELECT id FROM users WHERE users.id = profile.id);
-        """,
-        validation_queries=[
-            "SELECT user_id FROM profile WHERE id = 101"
-        ],
-        expected_results=[
-            [{"user_id": 1}] # Should remain as 1, but ambiguous join might set it to NULL or profile.id
-        ],
-        hint=None,
-        is_silent_corruption=True
-    ),
-
-    # hard_011: The Invisible Constraint (Self-referencing FK)
-    MigrationScenario(
-        id="hard_011_invisible_fk_conflict",
-        difficulty=DifficultyLevel.HARD,
-        description="ALTER TABLE fails due to self-referencing foreign key; requires PRAGMA analysis",
-        setup_sql="""
-            CREATE TABLE categories (
-                id INTEGER PRIMARY KEY,
-                name TEXT NOT NULL,
-                parent_id INTEGER,
-                FOREIGN KEY (parent_id) REFERENCES categories(id)
-            );
-            INSERT INTO categories (id, name, parent_id) VALUES 
-                (1, 'Electronics', NULL),
-                (2, 'Laptops', 1),
-                (3, 'Gaming Laptops', 2);
-        """,
-        broken_migration="""
-            -- Intention: Add a 'slug' column
-            ALTER TABLE categories ADD COLUMN slug TEXT;
-        """,
-        validation_queries=[
-            "SELECT COUNT(id) as count FROM categories WHERE name = 'Gaming Laptops' AND parent_id = 2"
-        ],
-        expected_results=[
-            [{"count": 1}]
-        ],
-        hint=None,
-        is_silent_corruption=True
-    ),
-
-    # hard_012: The Ambiguous Truncation (Join Overlap)
     MigrationScenario(
         id="hard_012_ambiguous_join_corruption",
         difficulty=DifficultyLevel.HARD,
@@ -734,7 +667,6 @@ HARD_SCENARIOS = [
             INSERT INTO profile (id, user_id, bio) VALUES (101, 1, 'Dev'), (102, 2, 'Ops');
         """,
         broken_migration="""
-            -- Intention: Synchronize user IDs
             UPDATE profile SET user_id = (SELECT id FROM users WHERE users.id = profile.id);
         """,
         validation_queries=[
@@ -747,7 +679,6 @@ HARD_SCENARIOS = [
         is_silent_corruption=True
     ),
 
-    # hard_013: Chained Rebuild Dependency
     MigrationScenario(
         id="hard_013_chained_rebuild",
         difficulty=DifficultyLevel.HARD,
@@ -759,7 +690,6 @@ HARD_SCENARIOS = [
             INSERT INTO child VALUES (101, 'P1');
         """,
         broken_migration="""
-            -- Intention: Rename 'code' to 'parent_code' in both tables
             ALTER TABLE parent RENAME COLUMN code TO parent_code;
             ALTER TABLE child RENAME COLUMN p_code TO parent_code;
         """,
