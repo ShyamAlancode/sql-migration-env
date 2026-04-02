@@ -6,7 +6,7 @@ description: >
   15 progressive scenarios including silent data corruption detection 
   via SHA-256 hashing and deterministic SQLite grading.
 author: "ShyamAlancode"
-entry_point: "app.main:app"
+entry_point: "server.app:app"
 port: 7860
 tags:
   - openenv
