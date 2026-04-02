@@ -1,26 +1,57 @@
-# Professional Git Exclusion - SQL Migration Safety Gym
-
-# Python bytecode
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Environments and Secrets
-.env
-.venv/
-env/
+# Virtual environments
 venv/
 ENV/
+env/
+.venv
 env.bak/
 venv.bak/
 
-# Project Specific
-*.db
-results_*.json
-last_reset.json
-
-# IDE / System
+# IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# OS
 .DS_Store
 Thumbs.db
+
+# Results (generated)
+results_*.json
+*.db
+*.sqlite
+last_reset.json
+
+# Environment variables (NEVER commit)
+.env
+.env.local
