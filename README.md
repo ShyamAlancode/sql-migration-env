@@ -1,3 +1,14 @@
+---
+title: SQL Migration Safety Gym
+emoji: 🛡️
+colorFrom: indigo
+colorTo: purple
+sdk: docker
+app_port: 7860
+pinned: false
+license: mit
+---
+
 # 🛡️ SQL Migration Safety Gym
 
 [![OpenEnv](https://img.shields.io/badge/OpenEnv-Compliant-green)](https://github.com/openai/openenv)
