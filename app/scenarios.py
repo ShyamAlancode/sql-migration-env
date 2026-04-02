@@ -433,6 +433,132 @@ HARD_SCENARIOS = [
         hint="Column drop is irreversible. Data is permanently lost. Need to RENAME column instead.",
         is_silent_corruption=True
     ),
+    
+    # hard_006: Subquery corruption
+    MigrationScenario(
+        id="hard_006_subquery_corruption",
+        difficulty=DifficultyLevel.HARD,
+        description="DELETE with correlated subquery deletes wrong rows",
+        setup_sql="""
+            CREATE TABLE orders (
+                id INTEGER PRIMARY KEY,
+                user_id INTEGER,
+                status TEXT,
+                amount REAL
+            );
+            CREATE TABLE users (
+                id INTEGER PRIMARY KEY,
+                status TEXT
+            );
+            INSERT INTO users VALUES (1, 'active'), (2, 'inactive'), (3, 'active');
+            INSERT INTO orders VALUES 
+                (1, 1, 'pending', 100.00),
+                (2, 2, 'completed', 200.00),
+                (3, 3, 'pending', 150.00),
+                (4, 1, 'completed', 300.00);
+        """,
+        broken_migration="""
+            -- Intention: Delete pending orders from inactive users
+            -- Bug: Correlated subquery logic is inverted!
+            DELETE FROM orders 
+            WHERE status = 'pending' 
+            AND user_id IN (
+                SELECT id FROM users WHERE status = 'active'
+            );
+        """,
+        validation_queries=[
+            "SELECT * FROM orders WHERE status='pending' ORDER BY id",
+            "SELECT COUNT(*) as count FROM orders"
+        ],
+        expected_results=[
+            [{"id": 1, "user_id": 1, "status": "pending", "amount": 100.0}],  # Should remain
+            [{"count": 4}]  # All 4 should remain (none deleted)
+        ],
+        hint="Subquery selects 'active' users but should select 'inactive'. This deletes pending orders from ACTIVE users instead!",
+        is_silent_corruption=True
+    ),
+    
+    # hard_007: Transaction partial commit
+    MigrationScenario(
+        id="hard_007_transaction_partial",
+        difficulty=DifficultyLevel.HARD,
+        description="Transaction fails mid-way but partial changes persist",
+        setup_sql="""
+            CREATE TABLE accounts (
+                id INTEGER PRIMARY KEY,
+                balance REAL,
+                version INTEGER DEFAULT 1
+            );
+            INSERT INTO accounts VALUES (1, 1000.00, 1), (2, 500.00, 1);
+        """,
+        broken_migration="""
+            -- Transfer $200 from account 1 to account 2
+            -- Bug: No transaction wrapper! If second UPDATE fails, first persists!
+            UPDATE accounts SET balance = balance - 200, version = version + 1 WHERE id = 1;
+            UPDATE accounts SET balance = balance + 200, version = version + 1 WHERE id = 999; -- Doesn't exist!
+        """,
+        validation_queries=[
+            "SELECT * FROM accounts ORDER BY id",
+            "SELECT SUM(balance) as total FROM accounts"
+        ],
+        expected_results=[
+            [
+                {"id": 1, "balance": 1000.0, "version": 1},  # Should be unchanged
+                {"id": 2, "balance": 500.0, "version": 1}
+            ],
+            [{"total": 1500.0}]  # Total should remain 1500
+        ],
+        hint="No TRANSACTION/BEGIN/COMMIT wrapper! First UPDATE persists even if second fails. Money disappears!",
+        is_silent_corruption=True
+    ),
+    
+    # hard_008: Cartesian product from implicit join
+    MigrationScenario(
+        id="hard_008_cartesian_join",
+        difficulty=DifficultyLevel.HARD,
+        description="UPDATE with implicit join creates cartesian product",
+        setup_sql="""
+            CREATE TABLE products (
+                id INTEGER PRIMARY KEY,
+                name TEXT,
+                price REAL
+            );
+            CREATE TABLE discounts (
+                product_name TEXT,
+                discount_percent REAL
+            );
+            INSERT INTO products VALUES 
+                (1, 'Widget', 100.00),
+                (2, 'Gadget', 200.00),
+                (3, 'Tool', 150.00);
+            INSERT INTO discounts VALUES 
+                ('Widget', 10.0),
+                ('Widget', 20.0),  -- Duplicate!
+                ('Gadget', 15.0);
+        """,
+        broken_migration="""
+            -- Apply discounts to products
+            -- Bug: Implicit join without proper WHERE creates cartesian product!
+            UPDATE products 
+            SET price = price * (1 - discount_percent / 100)
+            FROM discounts 
+            WHERE products.name = discounts.product_name;
+        """,
+        validation_queries=[
+            "SELECT * FROM products ORDER BY id",
+            "SELECT SUM(price) as total FROM products"
+        ],
+        expected_results=[
+            [
+                {"id": 1, "name": "Widget", "price": 90.0},   # 10% off
+                {"id": 2, "name": "Gadget", "price": 170.0}, # 15% off  
+                {"id": 3, "name": "Tool", "price": 150.0}    # No discount
+            ],
+            [{"total": 410.0}]
+        ],
+        hint="SQLite doesn't support UPDATE...FROM! This may apply multiple discounts or fail silently. Use subquery: UPDATE products SET price = price * (SELECT...) WHERE EXISTS(SELECT 1 FROM discounts...)",
+        is_silent_corruption=True
+    ),
 ]
 
 

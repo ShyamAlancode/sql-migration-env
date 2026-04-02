@@ -71,18 +71,33 @@ class Observation(BaseModel):
 
 
 class GradingResult(BaseModel):
-    """Detailed scoring breakdown"""
-    model_config = ConfigDict(strict=False)
+    """Detailed scoring breakdown with component scores"""
+    model_config = ConfigDict(strict=True)
     
     total_score: float = Field(ge=0, le=100)
     syntax_correct: bool
     syntax_score: float  # 0-20
-    data_integrity_score: float  # 0-40 (preserves existing data?)
-    schema_correct_score: float  # 0-30 (achieves intended schema?)
-    efficiency_score: float  # 0-10 (no redundant ops?)
+    
+    data_integrity_score: float  # 0-40
+    schema_correct_score: float  # 0-30
+    efficiency_score: float  # 0-10
+    
+    # NEW: Detailed breakdown for agent learning
+    breakdown: Dict[str, float] = Field(default_factory=dict)
     
     detailed_feedback: str
-    silent_corruption_detected: Optional[bool] = None  # Critical for HARD mode
+    silent_corruption_detected: Optional[bool] = None
+    
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Auto-populate breakdown
+        self.breakdown = {
+            "syntax": round(self.syntax_score, 2),
+            "data_integrity": round(self.data_integrity_score, 2),
+            "schema": round(self.schema_correct_score, 2),
+            "efficiency": round(self.efficiency_score, 2),
+            "total": round(self.total_score, 2)
+        }
 
 
 class State(BaseModel):

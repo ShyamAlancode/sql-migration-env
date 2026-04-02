@@ -5,9 +5,12 @@ OpenEnv Hackathon 2026 - Spec Compliant Version
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 from typing import Optional
 from pydantic import BaseModel
+import os
 
 from app.models import Action, Observation, DifficultyLevel, GradingResult
 from app.environment import SQLMigrationEnv, get_env
@@ -48,6 +51,23 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Add after app creation
+# Create static directory if not exists
+os.makedirs("static", exist_ok=True)
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/ui")
+async def web_interface():
+    """Interactive web UI for demo"""
+    return FileResponse("static/index.html")
+
+@app.get("/")
+async def root():
+    """Redirect to UI"""
+    return {"message": "SQL Migration Safety Gym", "ui": "/ui", "docs": "/docs"}
 
 # CORS for HF Spaces
 app.add_middleware(

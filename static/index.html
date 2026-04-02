@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL Migration Safety Gym - Interactive Demo</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .header p { opacity: 0.9; font-size: 1.1em; }
+        
+        .controls {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(102,126,234,0.4); }
+        .btn-secondary {
+            background: #e9ecef;
+            color: #495057;
+        }
+        .btn-secondary:hover { background: #dee2e6; }
+        .difficulty-select {
+            padding: 10px 15px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+            min-height: 600px;
+        }
+        
+        .panel {
+            padding: 30px;
+            border-right: 1px solid #e9ecef;
+        }
+        .panel:last-child { border-right: none; }
+        
+        .panel-title {
+            font-size: 1.2em;
+            font-weight: 700;
+            color: #495057;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .badge-easy { background: #d4edda; color: #155724; }
+        .badge-medium { background: #fff3cd; color: #856404; }
+        .badge-hard { background: #f8d7da; color: #721c24; }
+        .badge-corruption { background: #dc3545; color: white; animation: pulse 2s infinite; }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .code-block {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 12px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .code-block.error { border-left: 4px solid #dc3545; }
+        .code-block.success { border-left: 4px solid #28a745; }
+        
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 20px;
+            border: 2px solid #dee2e6;
+            border-radius: 12px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            resize: vertical;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .score-panel {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            margin-top: 20px;
+        }
+        .score-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .score-item {
+            text-align: center;
+            padding: 15px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+        }
+        .score-value {
+            font-size: 2em;
+            font-weight: 700;
+        }
+        .score-label {
+            font-size: 0.85em;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+        
+        .history-timeline {
+            margin-top: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .timeline-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            margin-bottom: 8px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #dee2e6;
+        }
+        .timeline-item.success { border-left-color: #28a745; }
+        .timeline-item.error { border-left-color: #dc3545; }
+        .timeline-step {
+            font-weight: 700;
+            color: #667eea;
+            margin-right: 15px;
+            min-width: 50px;
+        }
+        
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .alert-info { background: #d1ecf1; color: #0c5460; border-left: 4px solid #0c5460; }
+        .alert-warning { background: #fff3cd; color: #856404; border-left: 4px solid #856404; }
+        .alert-danger { background: #f8d7da; color: #721c24; border-left: 4px solid #721c24; }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ SQL Migration Safety Gym</h1>
+            <p>OpenEnv Hackathon 2026 - Interactive Demo</p>
+        </div>
+        
+        <div class="controls">
+            <select class="difficulty-select" id="difficulty">
+                <option value="easy">🟢 Easy (Syntax Errors)</option>
+                <option value="medium">🟡 Medium (Constraints)</option>
+                <option value="hard">🔴 Hard (Silent Corruption)</option>
+            </select>
+            <button class="btn-primary" onclick="startEpisode()">
+                <span id="startText">Start Episode</span>
+                <span id="startLoader" class="loading hidden"></span>
+            </button>
+            <button class="btn-secondary" onclick="submitFix()">
+                <span id="submitText">Submit Fix</span>
+                <span id="submitLoader" class="loading hidden"></span>
+            </button>
+            <button class="btn-secondary" onclick="resetAll()">Reset All</button>
+            <div id="statusBadge"></div>
+        </div>
+        
+        <div class="main-content">
+            <div class="panel">
+                <div class="panel-title">
+                    🔍 Broken Migration
+                    <span id="difficultyBadge" class="badge badge-easy hidden">EASY</span>
+                    <span id="corruptionBadge" class="badge badge-corruption hidden">⚠️ SILENT CORRUPTION</span>
+                </div>
+                
+                <div id="scenarioInfo" class="alert alert-info hidden"></div>
+                
+                <div class="code-block error" id="brokenSql">
+-- Click "Start Episode" to load a scenario...
+                </div>
+                
+                <div style="margin-top: 20px;">
+                    <div class="panel-title">✏️ Your Fix</div>
+                    <textarea id="fixedSql" placeholder="Enter your corrected SQL here...
+                    
+Example:
+ALTER TABLE users ADD COLUMN email TEXT DEFAULT '';"></textarea>
+                    
+                    <div style="margin-top: 15px;">
+                        <input type="text" id="explanation" placeholder="Brief explanation of your fix..." 
+                               style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 8px; margin-bottom: 10px;">
+                        <input type="range" id="confidence" min="0" max="1" step="0.1" value="0.8" 
+                               style="width: 100%;" oninput="document.getElementById('confValue').textContent = this.value">
+                        <span>Confidence: <span id="confValue">0.8</span></span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-title">📊 Results & State</div>
+                
+                <div id="stateInfo" class="alert alert-warning">
+                    No active episode. Click "Start Episode" to begin.
+                </div>
+                
+                <div id="scorePanel" class="score-panel hidden">
+                    <div style="font-size: 1.3em; font-weight: 700; margin-bottom: 10px;">
+                        Total Score: <span id="totalScore">0</span>/100
+                    </div>
+                    <div class="score-grid">
+                        <div class="score-item">
+                            <div class="score-value" id="syntaxScore">0</div>
+                            <div class="score-label">Syntax</div>
+                        </div>
+                        <div class="score-item">
+                            <div class="score-value" id="dataScore">0</div>
+                            <div class="score-label">Data Integrity</div>
+                        </div>
+                        <div class="score-item">
+                            <div class="score-value" id="schemaScore">0</div>
+                            <div class="score-label">Schema</div>
+                        </div>
+                        <div class="score-item">
+                            <div class="score-value" id="efficiencyScore">0</div>
+                            <div class="score-label">Efficiency</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="historyPanel" style="margin-top: 20px;">
+                    <div class="panel-title">📜 Episode History</div>
+                    <div class="history-timeline" id="historyTimeline">
+                        <!-- History items inserted here -->
+                    </div>
+                </div>
+                
+                <div id="feedbackPanel" class="alert hidden" style="margin-top: 20px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = ''; // Same origin
+        let currentState = null;
+        let episodeHistory = [];
+        
+        async function startEpisode() {
+            const btn = document.getElementById('startText');
+            const loader = document.getElementById('startLoader');
+            const difficulty = document.getElementById('difficulty').value;
+            
+            btn.classList.add('hidden');
+            loader.classList.remove('hidden');
+            
+            try {
+                const response = await fetch(`${API_BASE}/reset`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ task_id: difficulty })
+                });
+                
+                const data = await response.json();
+                currentState = data;
+                episodeHistory = [];
+                
+                // Update UI
+                document.getElementById('brokenSql').textContent = data.broken_sql;
+                document.getElementById('brokenSql').className = data.error_message ? 
+                    'code-block error' : 'code-block';
+                
+                document.getElementById('fixedSql').value = '';
+                document.getElementById('explanation').value = '';
+                
+                // Badges
+                document.getElementById('difficultyBadge').textContent = data.difficulty.toUpperCase();
+                document.getElementById('difficultyBadge').className = `badge badge-${data.difficulty}`;
+                document.getElementById('difficultyBadge').classList.remove('hidden');
+                
+                if (data.difficulty === 'hard' || data.is_silent_corruption) {
+                    document.getElementById('corruptionBadge').classList.remove('hidden');
+                } else {
+                    document.getElementById('corruptionBadge').classList.add('hidden');
+                }
+                
+                // Info
+                const info = document.getElementById('scenarioInfo');
+                info.textContent = `Scenario: ${data.scenario_id} | Step: ${data.step_count}/${data.max_steps}`;
+                info.classList.remove('hidden');
+                
+                if (data.hint) {
+                    info.innerHTML += `<br><strong>💡 Hint:</strong> ${data.hint}`;
+                }
+                
+                if (data.error_message) {
+                    info.innerHTML += `<br><strong>❌ Error:</strong> ${data.error_message}`;
+                } else if (data.difficulty === 'hard') {
+                    info.innerHTML += `<br><strong>⚠️ Warning:</strong> No error message - potential silent corruption!`;
+                }
+                
+                updateStateDisplay(data);
+                clearScores();
+                
+            } catch (err) {
+                alert('Failed to start episode: ' + err.message);
+            } finally {
+                btn.classList.remove('hidden');
+                loader.classList.add('hidden');
+            }
+        }
+        
+        async function submitFix() {
+            if (!currentState) {
+                alert('Start an episode first!');
+                return;
+            }
+            
+            const btn = document.getElementById('submitText');
+            const loader = document.getElementById('submitLoader');
+            
+            btn.classList.add('hidden');
+            loader.classList.remove('hidden');
+            
+            const fixedSql = document.getElementById('fixedSql').value;
+            const explanation = document.getElementById('explanation').value;
+            const confidence = parseFloat(document.getElementById('confidence').value);
+            
+            try {
+                const response = await fetch(`${API_BASE}/step`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        fixed_sql: fixedSql,
+                        explanation: explanation,
+                        confidence: confidence
+                    })
+                });
+                
+                const data = await response.json();
+                
+                // Update state
+                currentState = data.observation;
+                episodeHistory.push({
+                    step: data.info.step,
+                    reward: data.reward,
+                    score: data.info.grading_result.total_score,
+                    done: data.done
+                });
+                
+                // Update scores
+                const gr = data.info.grading_result;
+                document.getElementById('totalScore').textContent = gr.total_score.toFixed(1);
+                document.getElementById('syntaxScore').textContent = gr.syntax_score.toFixed(1);
+                document.getElementById('dataScore').textContent = gr.data_integrity_score.toFixed(1);
+                document.getElementById('schemaScore').textContent = gr.schema_correct_score.toFixed(1);
+                document.getElementById('efficiencyScore').textContent = gr.efficiency_score.toFixed(1);
+                document.getElementById('scorePanel').classList.remove('hidden');
+                
+                // Feedback
+                const feedback = document.getElementById('feedbackPanel');
+                feedback.textContent = gr.detailed_feedback;
+                feedback.className = `alert ${data.done ? 'alert-success' : 'alert-info'}`;
+                feedback.classList.remove('hidden');
+                
+                // Update history
+                updateHistory();
+                
+                // Update state info
+                updateStateDisplay(data.observation, data.done, data.reward);
+                
+                if (data.done) {
+                    document.getElementById('corruptionBadge').textContent = '✅ EPISODE COMPLETE';
+                }
+                
+            } catch (err) {
+                alert('Failed to submit: ' + err.message);
+            } finally {
+                btn.classList.remove('hidden');
+                loader.classList.add('hidden');
+            }
+        }
+        
+        function updateStateDisplay(obs, done = false, reward = 0) {
+            const stateDiv = document.getElementById('stateInfo');
+            stateDiv.className = done ? 'alert alert-success' : 'alert alert-info';
+            stateDiv.innerHTML = `
+                <strong>Episode Active</strong><br>
+                Scenario: ${obs.scenario_id}<br>
+                Step: ${obs.step_count}/${obs.max_steps}<br>
+                ${done ? `<strong>Done! Final Reward: ${reward.toFixed(3)}</strong>` : 'Submit your fix to continue.'}
+            `;
+        }
+        
+        function updateHistory() {
+            const timeline = document.getElementById('historyTimeline');
+            timeline.innerHTML = episodeHistory.map((h, i) => `
+                <div class="timeline-item ${h.done ? 'success' : ''}">
+                    <div class="timeline-step">Step ${h.step}</div>
+                    <div>
+                        <div>Score: ${h.score.toFixed(1)}/100</div>
+                        <div style="font-size: 0.9em; opacity: 0.7;">Reward: ${h.reward.toFixed(3)}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function clearScores() {
+            document.getElementById('scorePanel').classList.add('hidden');
+            document.getElementById('feedbackPanel').classList.add('hidden');
+            document.getElementById('historyTimeline').innerHTML = '';
+        }
+        
+        function resetAll() {
+            currentState = null;
+            episodeHistory = [];
+            document.getElementById('brokenSql').textContent = '-- Click "Start Episode" to load a scenario...';
+            document.getElementById('fixedSql').value = '';
+            document.getElementById('explanation').value = '';
+            document.getElementById('difficultyBadge').classList.add('hidden');
+            document.getElementById('corruptionBadge').classList.add('hidden');
+            document.getElementById('scenarioInfo').classList.add('hidden');
+            document.getElementById('stateInfo').className = 'alert alert-warning';
+            document.getElementById('stateInfo').textContent = 'No active episode. Click "Start Episode" to begin.';
+            clearScores();
+        }
+    </script>
+</body>
+</html>
