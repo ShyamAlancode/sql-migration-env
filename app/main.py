@@ -47,8 +47,16 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="SQL Migration Safety Gym",
-    description="OpenEnv environment for training AI agents to fix SQL migrations",
+    description=(
+        "Production-grade OpenEnv environment for training and evaluating "
+        "AI agents on database migration safety. Implements cryptographic "
+        "state verification, silent corruption detection, and RFC 001/002/003 compliance."
+    ),
     version="1.0.0",
+    contact={
+        "name": "SQL Migration Safety Support",
+        "url": "https://huggingface.co/spaces/ShyamAlancode/sql-migration-env"
+    },
     lifespan=lifespan
 )
 
@@ -117,7 +125,9 @@ async def list_tasks():
     return await list_scenarios()
 
 
-@app.post("/reset")
+@app.post("/reset", 
+          summary="Reset SQL Environment",
+          description="Initializes the SQL sandbox for a given task_id (easy/medium/hard) or specific scenario_id. Returns the initial observation.")
 async def reset_environment(request: ResetRequest):
     """
     Reset environment to initial state.
@@ -151,7 +161,10 @@ async def reset_environment(request: ResetRequest):
         raise HTTPException(status_code=500, detail=f"Reset failed: {str(e)}")
 
 
-@app.post("/step", response_model=StepResponse)
+@app.post("/step", 
+          summary="Apply Migration Fix",
+          response_model=StepResponse,
+          description="Executes a multi-statement SQL migration against the sandbox, grades the result, and returns rewards/observations.")
 async def step_environment(request: StepRequest):
     """Execute one step in the environment"""
     env = get_env()
@@ -176,7 +189,9 @@ async def step_environment(request: StepRequest):
         raise HTTPException(status_code=500, detail=f"Step failed: {str(e)}")
 
 
-@app.get("/state")
+@app.get("/state",
+         summary="Get Internal State",
+         description="Returns the full internal state of the current episode, including history and step counts. Hidden from agents.")
 async def get_current_state():
     """
     Get current INTERNAL STATE (not observation).
@@ -189,7 +204,9 @@ async def get_current_state():
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.get("/observation")
+@app.get("/observation",
+         summary="Get Agent Observation",
+         description="Returns only the signal visible to the agent: schema, sample data, and hints.")
 async def get_current_observation():
     """
     Get current AGENT OBSERVATION (what agent sees).
@@ -212,7 +229,9 @@ async def get_episode_stats():
     return stats
 
 
-@app.get("/metrics")
+@app.get("/metrics",
+         summary="Prometheus Metrics",
+         description="Returns environment metrics in a format compatible with production monitoring tools.")
 async def get_metrics():
     """Prometheus-compatible metrics for production monitoring"""
     env = get_env()

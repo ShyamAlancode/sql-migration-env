@@ -309,79 +309,45 @@ Be careful. Be precise. Check your work."""
 
 
 def main():
-    """
-    Main entry point - runs ALL 3 tasks as required by OpenEnv spec.
-    Outputs JSON to stdout (no file writes - HF Spaces is read-only).
-    """
-    print("=" * 60)
-    print("SQL Migration Safety Gym - Baseline Agent")
-    print("=" * 60)
-    print(f"Model: {MODEL_NAME}")
-    print(f"API Base: {API_BASE_URL}")
-    print(f"Env URL: {ENV_URL}")
-    print("=" * 60)
-    
-    # Create agent
-    agent = SQLMigrationAgent()
-    
-    # Run all 3 tasks as required by spec
+    API_BASE_URL  = os.environ.get("API_BASE_URL", "https://api.groq.com/openai/v1")
+    MODEL_NAME    = os.environ.get("MODEL_NAME", "llama-3.1-8b-instant")
+    HF_TOKEN      = os.environ.get("HF_TOKEN", "")
+    OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", HF_TOKEN)
+    ENV_URL       = os.environ.get("ENV_URL", "http://localhost:7860")
+
+    agent = SQLMigrationAgent(
+        model=MODEL_NAME,
+        api_key=OPENAI_API_KEY,
+        base_url=API_BASE_URL,
+        env_url=ENV_URL
+    )
+
     scores = {}
-    
     for task_id in ["easy", "medium", "hard"]:
-        print(f"\n{'='*60}")
-        print(f"TASK: {task_id.upper()}")
-        print(f"{'='*60}")
-        
         try:
-            result = agent.run_episode(task_id=task_id, verbose=True)
-            
-            # Extract final score from last step's grading
-            final_score = 0.0
-            if result.get("history"):
-                last_grading = result["history"][-1].get("grading", {})
-                final_score = last_grading.get("total_score", 0) / 100.0
-            
-            scores[task_id] = round(final_score, 4)
-            
-            print(f"\n📊 Task {task_id} Final Score: {final_score:.4f}")
-            
+            result = agent.run_episode(
+                task_id=task_id,
+                max_steps=3,
+                verbose=False
+            )
+            final = (
+                result["history"][-1]["grading"]["total_score"] / 100.0
+                if result["history"] else 0.0
+            )
+            scores[task_id] = round(final, 4)
         except Exception as e:
-            print(f"❌ Task {task_id} failed: {e}")
             scores[task_id] = 0.0
-    
-    # Calculate average
-    avg_score = sum(scores.values()) / 3 if scores else 0.0
-    
-    print("\n" + "=" * 60)
-    print("BASELINE RESULTS")
-    print("=" * 60)
-    print(f"  easy   → {scores.get('easy', 0):.4f}")
-    print(f"  medium → {scores.get('medium', 0):.4f}")
-    print(f"  hard   → {scores.get('hard', 0):.4f}")
-    print(f"  AVG    → {avg_score:.4f}")
-    print("=" * 60)
-    
-    # CRITICAL: Output JSON to stdout (no file writes)
-    final_results = {
+
+    output = {
         "model": MODEL_NAME,
+        "environment": "sql-migration-env",
         "scores": scores,
-        "average": round(avg_score, 4),
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        "average": round(sum(scores.values()) / 3, 4)
     }
-    
-    print("\n📋 FINAL JSON OUTPUT:")
-    print(json.dumps(final_results, indent=2))
-    
-    # Return for programmatic use
-    return final_results
+
+    # Only print JSON to stdout — no other print statements in main()
+    print(json.dumps(output))
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("\n\n⚠️ Interrupted by user")
-        sys.exit(1)
-    except Exception as e:
-        print(f"\n\n❌ Fatal error: {e}")
-        sys.exit(1)
+    main()

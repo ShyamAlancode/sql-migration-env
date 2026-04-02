@@ -106,8 +106,9 @@ class DatabaseSandbox:
     
     def compute_hash(self) -> str:
         """
-        Compute hash of all user tables for corruption detection
-        Critical for HARD mode (silent corruption detection)
+        Compute a cryptographic SHA-256 hash of all user table content.
+        Used as a side-effect guardrail to detect unintended database state changes
+        that may not be caught by explicit validation queries.
         """
         if not self.connection:
             return ""

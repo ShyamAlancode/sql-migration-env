@@ -37,11 +37,16 @@ class SQLMigrationEnv:
         if scenario_id:
             self._current_scenario_id = scenario_id
         else:
-            import random
             candidates = list(ALL_SCENARIOS.values())
             if difficulty:
+                # Deterministic selection for benchmark stability: pick first scenario of difficulty
                 candidates = [s for s in candidates if s.difficulty == difficulty]
-            scenario = random.choice(candidates)
+                # Sort by ID to ensure strict determinism across Python versions
+                candidates.sort(key=lambda x: x.id)
+                scenario = candidates[0]
+            else:
+                import random
+                scenario = random.choice(candidates)
             self._current_scenario_id = scenario.id
         
         # Reset internal state
@@ -180,8 +185,11 @@ class SQLMigrationEnv:
             sample_data = db.get_sample_data(main_table, limit=5)
             previous_schema = current_schema
         
-        # Hint only for easy mode
-        hint = scenario.hint if scenario.difficulty == DifficultyLevel.EASY else None
+        # Hint only for easy mode; strictly None for hard per benchmark spec
+        if scenario.difficulty == DifficultyLevel.HARD:
+            hint = None
+        else:
+            hint = scenario.hint if scenario.difficulty == DifficultyLevel.EASY else None
         
         return Observation(
             scenario_id=scenario.id,
