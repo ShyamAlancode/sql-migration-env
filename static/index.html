@@ -4,11 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SQL Migration Safety Gym - Interactive Demo</title>
+    <!-- Prism.js for SQL syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f1f5f9;
             min-height: 100vh;
             padding: 20px;
         }
@@ -21,13 +23,14 @@
             overflow: hidden;
         }
         .header {
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            background: #0f172a;
             color: white;
             padding: 30px;
             text-align: center;
+            border-bottom: 2px solid #1e293b;
         }
-        .header h1 { font-size: 2.5em; margin-bottom: 10px; }
-        .header p { opacity: 0.9; font-size: 1.1em; }
+        .header h1 { font-size: 2.2em; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 10px; }
+        .header p { color: #94a3b8; font-size: 1.1em; }
         
         .controls {
             padding: 20px 30px;
@@ -48,10 +51,11 @@
             transition: all 0.2s;
         }
         .btn-primary {
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            background: #1e293b;
             color: white;
+            border: 1px solid #334155;
         }
-        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(102,126,234,0.4); }
+        .btn-primary:hover { background: #334155; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         .btn-secondary {
             background: #e9ecef;
             color: #495057;
@@ -104,6 +108,29 @@
             50% { opacity: 0.7; }
         }
         
+        /* Prism-based code block wrapper */
+        .sql-highlight-wrapper {
+            border-radius: 12px;
+            overflow: hidden;
+            max-height: 300px;
+            overflow-y: auto;
+            border-left: 4px solid #dc3545;
+            margin-bottom: 0;
+        }
+        .sql-highlight-wrapper.success { border-left-color: #28a745; }
+        .sql-highlight-wrapper pre {
+            margin: 0 !important;
+            border-radius: 0 !important;
+            background: #1e1e1e !important;
+            font-size: 13px !important;
+        }
+        .sql-highlight-wrapper pre code {
+            background: none !important;
+            font-size: 13px !important;
+            font-family: 'Consolas', 'Monaco', monospace !important;
+        }
+        
+        /* Fallback plain code block */
         .code-block {
             background: #1e1e1e;
             color: #d4d4d4;
@@ -137,34 +164,70 @@
             border-color: #667eea;
         }
         
+        /* ==== SCORE PANEL with animated bars ==== */
         .score-panel {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #0f172a;
             color: white;
             padding: 25px;
             border-radius: 12px;
             margin-top: 20px;
+            border: 1px solid #1e293b;
         }
-        .score-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 15px;
-            margin-top: 15px;
-        }
-        .score-item {
-            text-align: center;
-            padding: 15px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 8px;
-        }
-        .score-value {
-            font-size: 2em;
+        .score-total {
+            font-size: 1.4em;
             font-weight: 700;
+            margin-bottom: 18px;
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
         }
-        .score-label {
-            font-size: 0.85em;
-            opacity: 0.9;
-            margin-top: 5px;
+        .score-total .total-number {
+            font-size: 2em;
+            font-weight: 800;
+            color: #38bdf8;
         }
+        .score-bars {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .score-bar-row {
+            display: grid;
+            grid-template-columns: 110px 1fr 48px;
+            align-items: center;
+            gap: 10px;
+        }
+        .score-bar-label {
+            font-size: 0.82em;
+            opacity: 0.85;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        .score-bar-track {
+            background: rgba(255,255,255,0.1);
+            border-radius: 6px;
+            height: 10px;
+            overflow: hidden;
+        }
+        .score-bar-fill {
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+            width: 0%;
+        }
+        .bar-syntax   { background: linear-gradient(90deg, #6366f1, #818cf8); }
+        .bar-data     { background: linear-gradient(90deg, #0ea5e9, #38bdf8); }
+        .bar-schema   { background: linear-gradient(90deg, #10b981, #34d399); }
+        .bar-efficiency { background: linear-gradient(90deg, #f59e0b, #fcd34d); }
+        .score-bar-value {
+            font-size: 0.9em;
+            font-weight: 700;
+            text-align: right;
+            color: #e2e8f0;
+        }
+        /* Max values for bar width calculation */
+        /* syntax /10, data /45, schema /35, efficiency /10 → normalize to 100% of max */
         
         .history-timeline {
             margin-top: 20px;
@@ -194,9 +257,10 @@
             border-radius: 8px;
             margin-bottom: 20px;
         }
-        .alert-info { background: #d1ecf1; color: #0c5460; border-left: 4px solid #0c5460; }
+        .alert-info    { background: #d1ecf1; color: #0c5460; border-left: 4px solid #0c5460; }
         .alert-warning { background: #fff3cd; color: #856404; border-left: 4px solid #856404; }
-        .alert-danger { background: #f8d7da; color: #721c24; border-left: 4px solid #721c24; }
+        .alert-danger  { background: #f8d7da; color: #721c24; border-left: 4px solid #721c24; }
+        .alert-success { background: #d4edda; color: #155724; border-left: 4px solid #155724; }
         
         .loading {
             display: inline-block;
@@ -210,20 +274,32 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
         .hidden { display: none; }
+
+        /* Server status pill */
+        #serverStatus {
+            font-size: 0.8em;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            background: #fef3c7;
+            color: #92400e;
+            margin-left: auto;
+        }
+        #serverStatus.online { background: #d1fae5; color: #065f46; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🛡️ SQL Migration Safety Gym</h1>
-            <p>OpenEnv Hackathon 2026 - Interactive Demo</p>
+            <h1>SQL Migration Safety Gym</h1>
+            <p>OpenEnv Hackathon 2026 - Production Benchmarking Environment</p>
         </div>
         
         <div class="controls">
             <select class="difficulty-select" id="difficulty">
-                <option value="easy">🟢 Easy (Syntax Errors)</option>
-                <option value="medium">🟡 Medium (Constraints)</option>
-                <option value="hard">🔴 Hard (Silent Corruption)</option>
+                <option value="easy">Difficulty: Easy (Syntax)</option>
+                <option value="medium">Difficulty: Medium (Constraints)</option>
+                <option value="hard">Difficulty: Hard (Corruption)</option>
             </select>
             <button class="btn-primary" onclick="startEpisode()">
                 <span id="startText">Start Episode</span>
@@ -235,24 +311,26 @@
             </button>
             <button class="btn-secondary" onclick="resetAll()">Reset All</button>
             <div id="statusBadge"></div>
+            <span id="serverStatus">Connecting...</span>
         </div>
         
         <div class="main-content">
             <div class="panel">
                 <div class="panel-title">
-                    🔍 Broken Migration
+                    Broken Migration
                     <span id="difficultyBadge" class="badge badge-easy hidden">EASY</span>
-                    <span id="corruptionBadge" class="badge badge-corruption hidden">⚠️ SILENT CORRUPTION</span>
+                    <span id="corruptionBadge" class="badge badge-corruption hidden">SILENT CORRUPTION</span>
                 </div>
                 
                 <div id="scenarioInfo" class="alert alert-info hidden"></div>
                 
-                <div class="code-block error" id="brokenSql">
--- Click "Start Episode" to load a scenario...
+                <!-- Prism.js SQL highlighted block -->
+                <div class="sql-highlight-wrapper error" id="sqlWrapper">
+                    <pre><code class="language-sql" id="brokenSqlCode">-- Click "Start Episode" to load a scenario...</code></pre>
                 </div>
                 
                 <div style="margin-top: 20px;">
-                    <div class="panel-title">✏️ Your Fix</div>
+                    <div class="panel-title">Your Fix</div>
                     <textarea id="fixedSql" placeholder="Enter your corrected SQL here...
                     
 Example:
@@ -269,38 +347,51 @@ ALTER TABLE users ADD COLUMN email TEXT DEFAULT '';"></textarea>
             </div>
             
             <div class="panel">
-                <div class="panel-title">📊 Results & State</div>
+                <div class="panel-title">Results &amp; State</div>
                 
                 <div id="stateInfo" class="alert alert-warning">
                     No active episode. Click "Start Episode" to begin.
                 </div>
                 
+                <!-- Score panel with animated bars -->
                 <div id="scorePanel" class="score-panel hidden">
-                    <div style="font-size: 1.3em; font-weight: 700; margin-bottom: 10px;">
-                        Total Score: <span id="totalScore">0</span>/100
+                    <div class="score-total">
+                        Total Score: <span class="total-number" id="totalScore">0</span><span style="opacity:0.6; font-size:0.7em">/100</span>
                     </div>
-                    <div class="score-grid">
-                        <div class="score-item">
-                            <div class="score-value" id="syntaxScore">0</div>
-                            <div class="score-label">Syntax</div>
+                    <div class="score-bars">
+                        <div class="score-bar-row">
+                            <div class="score-bar-label">Syntax</div>
+                            <div class="score-bar-track">
+                                <div class="score-bar-fill bar-syntax" id="barSyntax"></div>
+                            </div>
+                            <div class="score-bar-value" id="syntaxScore">0</div>
                         </div>
-                        <div class="score-item">
-                            <div class="score-value" id="dataScore">0</div>
-                            <div class="score-label">Data Integrity</div>
+                        <div class="score-bar-row">
+                            <div class="score-bar-label">Data Integrity</div>
+                            <div class="score-bar-track">
+                                <div class="score-bar-fill bar-data" id="barData"></div>
+                            </div>
+                            <div class="score-bar-value" id="dataScore">0</div>
                         </div>
-                        <div class="score-item">
-                            <div class="score-value" id="schemaScore">0</div>
-                            <div class="score-label">Schema</div>
+                        <div class="score-bar-row">
+                            <div class="score-bar-label">Schema</div>
+                            <div class="score-bar-track">
+                                <div class="score-bar-fill bar-schema" id="barSchema"></div>
+                            </div>
+                            <div class="score-bar-value" id="schemaScore">0</div>
                         </div>
-                        <div class="score-item">
-                            <div class="score-value" id="efficiencyScore">0</div>
-                            <div class="score-label">Efficiency</div>
+                        <div class="score-bar-row">
+                            <div class="score-bar-label">Efficiency</div>
+                            <div class="score-bar-track">
+                                <div class="score-bar-fill bar-efficiency" id="barEfficiency"></div>
+                            </div>
+                            <div class="score-bar-value" id="efficiencyScore">0</div>
                         </div>
                     </div>
                 </div>
                 
                 <div id="historyPanel" style="margin-top: 20px;">
-                    <div class="panel-title">📜 Episode History</div>
+                    <div class="panel-title">Episode History</div>
                     <div class="history-timeline" id="historyTimeline">
                         <!-- History items inserted here -->
                     </div>
@@ -311,10 +402,72 @@ ALTER TABLE users ADD COLUMN email TEXT DEFAULT '';"></textarea>
         </div>
     </div>
 
+    <!-- Prism.js core + SQL language -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-sql.min.js"></script>
+
     <script>
         const API_BASE = ''; // Same origin
         let currentState = null;
         let episodeHistory = [];
+
+        // Score bar maxes
+        const SCORE_MAXES = { syntax: 10, data: 45, schema: 35, efficiency: 10 };
+
+        // ── Warmup ping on page load ──────────────────────────────────
+        async function warmupPing() {
+            const pill = document.getElementById('serverStatus');
+            try {
+                const r = await fetch(`${API_BASE}/health`);
+                if (r.ok) {
+                    const d = await r.json();
+                    pill.textContent = `Online · ${d.scenarios_available} scenarios`;
+                    pill.classList.add('online');
+                } else {
+                    pill.textContent = 'Server error';
+                }
+            } catch {
+                pill.textContent = 'Offline';
+            }
+        }
+        warmupPing();
+
+        // ── Helper: animate a single bar ─────────────────────────────
+        function animateBar(barId, value, maxValue) {
+            const el = document.getElementById(barId);
+            // Use requestAnimationFrame to ensure CSS transition fires
+            requestAnimationFrame(() => {
+                el.style.width = '0%';
+                requestAnimationFrame(() => {
+                    el.style.width = `${(value / maxValue) * 100}%`;
+                });
+            });
+        }
+
+        // ── Helper: update score display with animated bars ───────────
+        function updateScores(gr) {
+            document.getElementById('totalScore').textContent = gr.total_score.toFixed(1);
+            document.getElementById('syntaxScore').textContent = gr.syntax_score.toFixed(1);
+            document.getElementById('dataScore').textContent = gr.data_integrity_score.toFixed(1);
+            document.getElementById('schemaScore').textContent = gr.schema_correct_score.toFixed(1);
+            document.getElementById('efficiencyScore').textContent = gr.efficiency_score.toFixed(1);
+
+            animateBar('barSyntax',     gr.syntax_score,          SCORE_MAXES.syntax);
+            animateBar('barData',       gr.data_integrity_score,  SCORE_MAXES.data);
+            animateBar('barSchema',     gr.schema_correct_score,  SCORE_MAXES.schema);
+            animateBar('barEfficiency', gr.efficiency_score,      SCORE_MAXES.efficiency);
+
+            document.getElementById('scorePanel').classList.remove('hidden');
+        }
+
+        // ── Helper: set broken SQL with Prism highlighting ────────────
+        function setSqlContent(sql, hasError) {
+            const codeEl = document.getElementById('brokenSqlCode');
+            const wrapper = document.getElementById('sqlWrapper');
+            codeEl.textContent = sql;
+            wrapper.className = `sql-highlight-wrapper ${hasError ? 'error' : 'success'}`;
+            if (window.Prism) Prism.highlightElement(codeEl);
+        }
         
         async function startEpisode() {
             const btn = document.getElementById('startText');
@@ -335,10 +488,8 @@ ALTER TABLE users ADD COLUMN email TEXT DEFAULT '';"></textarea>
                 currentState = data;
                 episodeHistory = [];
                 
-                // Update UI
-                document.getElementById('brokenSql').textContent = data.broken_sql;
-                document.getElementById('brokenSql').className = data.error_message ? 
-                    'code-block error' : 'code-block';
+                // Update broken SQL with Prism
+                setSqlContent(data.broken_sql, !!data.error_message);
                 
                 document.getElementById('fixedSql').value = '';
                 document.getElementById('explanation').value = '';
@@ -360,13 +511,13 @@ ALTER TABLE users ADD COLUMN email TEXT DEFAULT '';"></textarea>
                 info.classList.remove('hidden');
                 
                 if (data.hint) {
-                    info.innerHTML += `<br><strong>💡 Hint:</strong> ${data.hint}`;
+                    info.innerHTML += `<br><strong>Hint:</strong> ${data.hint}`;
                 }
                 
                 if (data.error_message) {
-                    info.innerHTML += `<br><strong>❌ Error:</strong> ${data.error_message}`;
+                    info.innerHTML += `<br><strong>Error:</strong> ${data.error_message}`;
                 } else if (data.difficulty === 'hard') {
-                    info.innerHTML += `<br><strong>⚠️ Warning:</strong> No error message - potential silent corruption!`;
+                    info.innerHTML += `<br><strong>Warning:</strong> No error message — potential silent corruption!`;
                 }
                 
                 updateStateDisplay(data);
@@ -418,18 +569,12 @@ ALTER TABLE users ADD COLUMN email TEXT DEFAULT '';"></textarea>
                     done: data.done
                 });
                 
-                // Update scores
-                const gr = data.info.grading_result;
-                document.getElementById('totalScore').textContent = gr.total_score.toFixed(1);
-                document.getElementById('syntaxScore').textContent = gr.syntax_score.toFixed(1);
-                document.getElementById('dataScore').textContent = gr.data_integrity_score.toFixed(1);
-                document.getElementById('schemaScore').textContent = gr.schema_correct_score.toFixed(1);
-                document.getElementById('efficiencyScore').textContent = gr.efficiency_score.toFixed(1);
-                document.getElementById('scorePanel').classList.remove('hidden');
+                // Animated score bars
+                updateScores(data.info.grading_result);
                 
                 // Feedback
                 const feedback = document.getElementById('feedbackPanel');
-                feedback.textContent = gr.detailed_feedback;
+                feedback.textContent = data.info.grading_result.detailed_feedback;
                 feedback.className = `alert ${data.done ? 'alert-success' : 'alert-info'}`;
                 feedback.classList.remove('hidden');
                 
@@ -440,7 +585,9 @@ ALTER TABLE users ADD COLUMN email TEXT DEFAULT '';"></textarea>
                 updateStateDisplay(data.observation, data.done, data.reward);
                 
                 if (data.done) {
-                    document.getElementById('corruptionBadge').textContent = '✅ EPISODE COMPLETE';
+                    document.getElementById('corruptionBadge').textContent = 'EPISODE COMPLETE';
+                    document.getElementById('corruptionBadge').style.background = '#28a745';
+                    document.getElementById('corruptionBadge').style.animation = 'none';
                 }
                 
             } catch (err) {
@@ -476,15 +623,19 @@ ALTER TABLE users ADD COLUMN email TEXT DEFAULT '';"></textarea>
         }
         
         function clearScores() {
+            // Reset bars to 0
+            ['barSyntax','barData','barSchema','barEfficiency'].forEach(id => {
+                document.getElementById(id).style.width = '0%';
+            });
             document.getElementById('scorePanel').classList.add('hidden');
             document.getElementById('feedbackPanel').classList.add('hidden');
-            document.getElementById('historyTimeline').innerHTML = '';
+            document.getElementById('historyTimeline').innerHTML = '<div style="color: #64748b; font-style: italic; padding: 10px;">No steps taken yet - submit a fix to begin.</div>';
         }
         
         function resetAll() {
             currentState = null;
             episodeHistory = [];
-            document.getElementById('brokenSql').textContent = '-- Click "Start Episode" to load a scenario...';
+            setSqlContent('-- Click "Start Episode" to load a scenario...', true);
             document.getElementById('fixedSql').value = '';
             document.getElementById('explanation').value = '';
             document.getElementById('difficultyBadge').classList.add('hidden');

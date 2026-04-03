@@ -2,7 +2,7 @@ name: sql-migration-env
 version: "1.0.0"
 description: >
   Production-grade OpenEnv RL environment for training AI agents to detect
-  and remediate SQL migration failures. 22 scenarios across Easy/Medium/Hard
+  and remediate SQL migration failures. 23 scenarios across Easy/Medium/Hard
   difficulty tiers. Features SHA-256 cryptographic state verification,
   silent data corruption detection, and smooth reward shaping.
 author: "ShyamAlancode"
@@ -28,7 +28,7 @@ tasks:
   - id: hard
     name: "Detect Silent Data Corruption"
     difficulty: hard
-    description: "Fix semantically broken migrations: execution-order bugs, cartesian join errors, type truncation (12 scenarios)"
+    description: "Fix semantically broken migrations: execution-order bugs, cartesian join errors, type truncation (13 scenarios)"
 
 environment:
   type: docker

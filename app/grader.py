@@ -1,6 +1,6 @@
 """
 Deterministic grading engine for sql-migration-env
-Scores: Syntax (20), Data Integrity (40), Schema (30), Efficiency (10)
+Scores: Syntax (10), Data Integrity (45), Schema (35), Efficiency (10) = 100
 """
 
 import sqlite3
@@ -59,7 +59,7 @@ class MigrationGrader:
             # Dispatch to specialized grader for the new hard scenario
             if self.scenario.id == "hard_001_execution_order_corruption":
                 return self._grade_hard_execution_order(
-                    db, pre_hash, exec_success, exec_error
+                    db, pre_hash, exec_success, exec_error, action.fixed_sql
                 )
 
             # Score components
@@ -241,7 +241,7 @@ class MigrationGrader:
         """Generate human-readable feedback"""
         parts = []
         
-        if syntax < 20:
+        if syntax == 0:
             parts.append("Syntax error in fixed SQL.")
         else:
             parts.append("SQL executed successfully.")
@@ -270,7 +270,8 @@ class MigrationGrader:
         db,
         pre_hash: str,
         exec_success: bool,
-        exec_error: str
+        exec_error: str,
+        fixed_sql: str = ""
     ) -> GradingResult:
         """
         Grades the execution-order corruption scenario.
@@ -292,7 +293,7 @@ class MigrationGrader:
             )
 
         post_hash = db.compute_hash()
-        syntax_score = 20.0  # executed cleanly
+        syntax_score = 10.0  # executed cleanly (max 10, consistent with all other paths)
 
         # Check premium customer discounts
         try:
@@ -304,9 +305,9 @@ class MigrationGrader:
             rows = [dict(r) for r in rows]
         except Exception as e:
             return GradingResult(
-                total_score=20.0,
+                total_score=10.0,
                 syntax_correct=True,
-                syntax_score=20.0,
+                syntax_score=10.0,
                 data_integrity_score=0.0,
                 schema_correct_score=0.0,
                 efficiency_score=0.0,
@@ -361,7 +362,7 @@ class MigrationGrader:
             schema_score = 0.0
 
         efficiency_score = 10.0 if not re.search(
-            r'\bDROP\b|\bTRUNCATE\b', str(db), re.I
+            r'\bDROP\b|\bTRUNCATE\b', fixed_sql, re.I
         ) else 0.0
 
         total = syntax_score + data_score + schema_score + efficiency_score

@@ -1,5 +1,5 @@
 ================================================================================
-  SQL MIGRATION SAFETY GYM — COMPLETE PROJECT DOCUMENTATION
+  SQL MIGRATION SAFETY GYM  COMPLETE PROJECT DOCUMENTATION
   OpenEnv Hackathon 2026 | Mentor Review Document
   Author: ShyamAlancode
   Date: April 2026
@@ -14,18 +14,18 @@ TABLE OF CONTENTS
   5.  Technology Stack
   6.  Project File Structure
   7.  Core Components (A-Z Detail)
-       7.1  app/models.py        — Type System
-       7.2  app/scenarios.py     — The 22 Scenarios
-       7.3  app/database.py      — SQLite Sandbox
-       7.4  app/environment.py   — Episode Manager
-       7.5  app/grader.py        — Reward Engine
-       7.6  app/main.py          — FastAPI Server
-       7.7  inference.py         — Baseline Agent
-       7.8  server/app.py        — Docker Entrypoint
+       7.1  app/models.py         Type System
+       7.2  app/scenarios.py      The 22 Scenarios
+       7.3  app/database.py       SQLite Sandbox
+       7.4  app/environment.py    Episode Manager
+       7.5  app/grader.py         Reward Engine
+       7.6  app/main.py           FastAPI Server
+       7.7  inference.py          Baseline Agent
+       7.8  server/app.py         Docker Entrypoint
        7.9  Dockerfile
-       7.10 openenv.yaml         — Environment Manifest
+       7.10 openenv.yaml          Environment Manifest
        7.11 requirements.txt
-       7.12 tests/               — Test Suite
+       7.12 tests/                Test Suite
   8.  The Reward Function (Detailed)
   9.  The 22 Scenarios (Full Catalogue)
   10. The Grading Philosophy
@@ -55,7 +55,7 @@ The core innovation is the focus on SEMANTIC correctness rather than SYNTACTIC
 correctness. Most SQL benchmarks stop at "does the query parse?" We go further:
 "Does the migration leave the database in a correct, uncorrupted state?"
 
-This is the first OpenEnv environment targeting silent SQL data corruption —
+This is the first OpenEnv environment targeting silent SQL data corruption 
 bugs that execute without error but permanently damage production data.
 
 
@@ -65,7 +65,7 @@ bugs that execute without error but permanently damage production data.
 
 WHY SQL MIGRATIONS?
 
-Every company that runs a relational database runs migrations — schema changes
+Every company that runs a relational database runs migrations  schema changes
 applied to a live production database. Migrations are:
 
   - Run once, irreversibly.
@@ -91,12 +91,12 @@ THE SPECIFIC CHALLENGE WE MODEL:
 
 There are two categories of bugs in SQL migrations:
 
-  CATEGORY A — Syntactic Errors (Easy to detect):
+  CATEGORY A  Syntactic Errors (Easy to detect):
     - Query fails immediately with an error message.
     - "near 'TALBE': syntax error"
-    - These are annoying but safe — the migration stops.
+    - These are annoying but safe  the migration stops.
 
-  CATEGORY B — Semantic Errors / Silent Corruption (Hard to detect):
+  CATEGORY B  Semantic Errors / Silent Corruption (Hard to detect):
     - Query executes to completion with exit code 0.
     - Database state is now incorrect.
     - No error is ever raised.
@@ -145,36 +145,36 @@ KEY DISQUALIFICATION CRITERIA (ALL must pass):
 
 OVERVIEW:
 
-  ┌─────────────────────────────────────────────────────────┐
-  │  AI Agent (inference.py or external client)             │
-  │  Uses OpenAI-compatible client to call environment      │
-  └───────────────┬─────────────────────────────────────────┘
-                  │  HTTP (POST /reset, /step, GET /state)
-                  ▼
-  ┌─────────────────────────────────────────────────────────┐
-  │  FastAPI Server (app/main.py)                           │
-  │  - Exposes REST API on port 7860                        │
-  │  - Validates Pydantic models                            │
-  │  - Routes to environment singleton                      │
-  └───────────────┬────────────────┬────────────────────────┘
-                  │                │
-         ┌────────▼──────┐  ┌──────▼────────────────────┐
-         │ SQLMigrationEnv│  │ MigrationGrader           │
-         │ (environment.py│  │ (grader.py)               │
-         │  Episode logic │  │ SHA-256 + Validation Qs   │
-         └────────┬───────┘  └──────────────────────────┘
-                  │
-         ┌────────▼───────┐
-         │ SQLiteDatabase  │
-         │ (database.py)   │
-         │ In-memory only  │
-         └────────┬───────┘
-                  │
-         ┌────────▼───────┐
-         │ Scenarios       │
-         │ (scenarios.py)  │
-         │ 22 test cases   │
-         └────────────────┘
+  
+    AI Agent (inference.py or external client)             
+    Uses OpenAI-compatible client to call environment      
+  
+                    HTTP (POST /reset, /step, GET /state)
+                  
+  
+    FastAPI Server (app/main.py)                           
+    - Exposes REST API on port 7860                        
+    - Validates Pydantic models                            
+    - Routes to environment singleton                      
+  
+                                  
+           
+          SQLMigrationEnv   MigrationGrader           
+          (environment.py   (grader.py)               
+           Episode logic    SHA-256 + Validation Qs   
+           
+                  
+         
+          SQLiteDatabase  
+          (database.py)   
+          In-memory only  
+         
+                  
+         
+          Scenarios       
+          (scenarios.py)  
+          22 test cases   
+         
 
 FLOW OF ONE EPISODE:
 
@@ -232,36 +232,36 @@ WHAT WE EXPLICITLY DID NOT USE:
 ================================================================================
 
 sql-migration-env/
-│
-├── app/                        # Core environment package
-│   ├── __init__.py
-│   ├── models.py               # Pydantic types: Action, Observation, State
-│   ├── scenarios.py            # All 22 migration test scenarios
-│   ├── database.py             # SQLite in-memory database wrapper
-│   ├── environment.py          # Episode manager (reset, step, state, obs)
-│   ├── grader.py               # Reward computation engine
-│   └── main.py                 # FastAPI server & endpoint handlers
-│
-├── server/                     # Docker entrypoint wrapper
-│   ├── __init__.py
-│   └── app.py                  # Re-exports app.main:app for uvicorn
-│
-├── tests/                      # pytest test suite
-│   ├── test_grader.py          # Grader unit tests
-│   ├── test_scenarios.py       # Environment behavior tests
-│   └── test_impossible_tasks.py # Hard scenario discrimination tests
-│
-├── static/                     # Web UI files (served at /ui)
-│   └── index.html
-│
-├── inference.py                # MANDATORY: Baseline agent script
-├── openenv.yaml                # Environment manifest (openenv validate reads this)
-├── requirements.txt            # Python dependencies
-├── Dockerfile                  # Container definition
-├── pyproject.toml              # Package metadata
-├── openenv_client_example.py   # Reference client for developers
-├── README.md                   # Competition README (spec-compliant)
-└── demo.py                     # Interactive demo script
+
+ app/                        # Core environment package
+    __init__.py
+    models.py               # Pydantic types: Action, Observation, State
+    scenarios.py            # All 22 migration test scenarios
+    database.py             # SQLite in-memory database wrapper
+    environment.py          # Episode manager (reset, step, state, obs)
+    grader.py               # Reward computation engine
+    main.py                 # FastAPI server & endpoint handlers
+
+ server/                     # Docker entrypoint wrapper
+    __init__.py
+    app.py                  # Re-exports app.main:app for uvicorn
+
+ tests/                      # pytest test suite
+    test_grader.py          # Grader unit tests
+    test_scenarios.py       # Environment behavior tests
+    test_impossible_tasks.py # Hard scenario discrimination tests
+
+ static/                     # Web UI files (served at /ui)
+    index.html
+
+ inference.py                # MANDATORY: Baseline agent script
+ openenv.yaml                # Environment manifest (openenv validate reads this)
+ requirements.txt            # Python dependencies
+ Dockerfile                  # Container definition
+ pyproject.toml              # Package metadata
+ openenv_client_example.py   # Reference client for developers
+ README.md                   # Competition README (spec-compliant)
+ demo.py                     # Interactive demo script
 
 
 ================================================================================
@@ -269,7 +269,7 @@ sql-migration-env/
 ================================================================================
 
 ------------------------------------------------------------------------
-7.1  app/models.py — The Type System
+7.1  app/models.py  The Type System
 ------------------------------------------------------------------------
 
 All data contracts are defined here using Pydantic v2 BaseModel.
@@ -281,30 +281,30 @@ This is what the OpenEnv spec calls "typed models."
     HARD   = "hard"
 
   Action (what the agent sends):
-    fixed_sql:   str    — The corrected SQL migration script
-    explanation: str    — Agent's reasoning (optional, max 1000 chars)
-    confidence:  float  — Self-reported confidence in [0.0, 1.0]
+    fixed_sql:   str     The corrected SQL migration script
+    explanation: str     Agent's reasoning (optional, max 1000 chars)
+    confidence:  float   Self-reported confidence in [0.0, 1.0]
 
   Observation (what the agent receives):
-    scenario_id:     str              — Unique scenario identifier
-    difficulty:      DifficultyLevel  — easy/medium/hard
-    description:     str              — Task description
-    broken_sql:      str              — The buggy migration to fix
-    error_message:   str | None       — Error if broken SQL failed (null for silent bugs)
-    current_schema:  SchemaInfo|None  — Current table structure
-    sample_data:     list[dict]|None  — First 5 rows of affected table
-    hint:            str | None       — Hint (Easy: included, Hard: always None)
-    step_count:      int              — Current step number
-    max_steps:       int              — Maximum steps per episode (5)
+    scenario_id:     str               Unique scenario identifier
+    difficulty:      DifficultyLevel   easy/medium/hard
+    description:     str               Task description
+    broken_sql:      str               The buggy migration to fix
+    error_message:   str | None        Error if broken SQL failed (null for silent bugs)
+    current_schema:  SchemaInfo|None   Current table structure
+    sample_data:     list[dict]|None   First 5 rows of affected table
+    hint:            str | None        Hint (Easy: included, Hard: always None)
+    step_count:      int               Current step number
+    max_steps:       int               Maximum steps per episode (5)
 
   GradingResult (returned in the info dict from /step):
-    total_score:           float  — 0–100 (normalized to 0.0-1.0 at API layer)
+    total_score:           float   0100 (normalized to 0.0-1.0 at API layer)
     syntax_correct:        bool
-    syntax_score:          float  — Component: 0–10
-    data_integrity_score:  float  — Component: 0–45
-    schema_correct_score:  float  — Component: 0–35
-    efficiency_score:      float  — Component: 0–10
-    detailed_feedback:     str    — Human-readable explanation of score
+    syntax_score:          float   Component: 010
+    data_integrity_score:  float   Component: 045
+    schema_correct_score:  float   Component: 035
+    efficiency_score:      float   Component: 010
+    detailed_feedback:     str     Human-readable explanation of score
     silent_corruption_detected: bool | None
 
   State (internal episode metadata, returned by GET /state):
@@ -312,25 +312,25 @@ This is what the OpenEnv spec calls "typed models."
     difficulty:    DifficultyLevel
     original_sql:  str
     current_sql:   str
-    db_state_hash: str          — SHA-256 of DB at episode start
+    db_state_hash: str           SHA-256 of DB at episode start
     step_count:    int
     done:          bool
-    history:       list[dict]   — All previous actions in episode
+    history:       list[dict]    All previous actions in episode
 
   MigrationScenario (internal only, not exposed to agent):
     id:                  str
     difficulty:          DifficultyLevel
     description:         str
-    setup_sql:           str       — SQL to create initial DB state
-    broken_migration:    str       — The buggy SQL
+    setup_sql:           str        SQL to create initial DB state
+    broken_migration:    str        The buggy SQL
     expected_schema:     SchemaInfo|None
-    validation_queries:  list[str] — Oracle queries to verify correct state
+    validation_queries:  list[str]  Oracle queries to verify correct state
     expected_results:    list[list[dict]]
     hint:                str|None
     is_silent_corruption: bool
 
 ------------------------------------------------------------------------
-7.2  app/scenarios.py — The 22 Scenarios
+7.2  app/scenarios.py  The 22 Scenarios
 ------------------------------------------------------------------------
 
 22 production-grade migration scenarios in 3 tiers.
@@ -344,7 +344,7 @@ Each scenario has:
 
 See Section 9 for the full catalogue.
 
-KEY DESIGN PRINCIPLE — ZERO INFORMATION LEAKAGE:
+KEY DESIGN PRINCIPLE  ZERO INFORMATION LEAKAGE:
   Every comment in broken_migration SQL is phrased as "intention" not "bug".
   Wrong: "-- BUG: MISSING WHERE CLAUSE"
   Right: "-- Intention: Apply discount to premium customers"
@@ -356,7 +356,7 @@ KEY DESIGN PRINCIPLE — ZERO INFORMATION LEAKAGE:
     3. The absence or presence of an error message
 
 ------------------------------------------------------------------------
-7.3  app/database.py — SQLite Sandbox
+7.3  app/database.py  SQLite Sandbox
 ------------------------------------------------------------------------
 
   Class: SQLiteDatabase
@@ -364,15 +364,15 @@ KEY DESIGN PRINCIPLE — ZERO INFORMATION LEAKAGE:
   PURPOSE: Isolated, in-memory SQLite database wrapper.
 
   Methods:
-    __init__()         — Opens :memory: connection
-    setup(sql)         — Runs setup_sql to initialize tables + data
-    execute_query(sql) — Executes SQL, returns (success, rows, error)
-    get_schema(table)  — Returns column definitions via PRAGMA table_info
-    get_table_names()  — Lists user tables (excluding sqlite_ internals)
-    compute_hash()     — SHA-256 of all table contents (sorted, deterministic)
-    close()            — Closes the connection
+    __init__()          Opens :memory: connection
+    setup(sql)          Runs setup_sql to initialize tables + data
+    execute_query(sql)  Executes SQL, returns (success, rows, error)
+    get_schema(table)   Returns column definitions via PRAGMA table_info
+    get_table_names()   Lists user tables (excluding sqlite_ internals)
+    compute_hash()      SHA-256 of all table contents (sorted, deterministic)
+    close()             Closes the connection
 
-  CRITICAL DETAIL — compute_hash():
+  CRITICAL DETAIL  compute_hash():
     - Queries all tables sorted alphabetically
     - Serializes all rows to JSON (sort_keys=True for determinism)
     - Feeds into hashlib.sha256()
@@ -384,7 +384,7 @@ KEY DESIGN PRINCIPLE — ZERO INFORMATION LEAKAGE:
     This is the "side-effect guardrail."
 
 ------------------------------------------------------------------------
-7.4  app/environment.py — Episode Manager
+7.4  app/environment.py  Episode Manager
 ------------------------------------------------------------------------
 
   Class: SQLMigrationEnv (singleton via get_env())
@@ -393,7 +393,7 @@ KEY DESIGN PRINCIPLE — ZERO INFORMATION LEAKAGE:
     reset(scenario_id=None, difficulty=None)
       - Selects scenario deterministically if difficulty provided
         (always picks the FIRST scenario of that difficulty for
-         benchmark reproducibility — critical for Phase 2 re-runs)
+         benchmark reproducibility  critical for Phase 2 re-runs)
       - Creates fresh SQLiteDatabase
       - Runs setup_sql
       - Attempts broken_migration (captures error or silent corruption)
@@ -409,7 +409,7 @@ KEY DESIGN PRINCIPLE — ZERO INFORMATION LEAKAGE:
       - Increments step_count
       - Sets done=True if max_steps reached or perfect score
       - Returns (Observation, reward: float, done: bool, info: dict)
-      NOTE: reward here is 0–100; main.py normalizes to 0.0–1.0.
+      NOTE: reward here is 0100; main.py normalizes to 0.01.0.
 
     state()
       - Returns internal State dict (episode metadata)
@@ -420,7 +420,7 @@ KEY DESIGN PRINCIPLE — ZERO INFORMATION LEAKAGE:
   DETERMINISTIC SCENARIO SELECTION:
     When an agent calls /reset with {"task_id": "hard"}, the environment
     ALWAYS returns the same scenario (hard_001_execution_order_corruption).
-    This is intentional — Phase 2 evaluation re-runs the baseline, so
+    This is intentional  Phase 2 evaluation re-runs the baseline, so
     results must be reproducible.
 
     Implementation:
@@ -428,13 +428,13 @@ KEY DESIGN PRINCIPLE — ZERO INFORMATION LEAKAGE:
       scenario = sorted(scenarios, key=lambda s: s.id)[0]  # Alphabetically first
 
 ------------------------------------------------------------------------
-7.5  app/grader.py — Reward Engine
+7.5  app/grader.py  Reward Engine
 ------------------------------------------------------------------------
 
   Class: MigrationGrader
 
   PURPOSE: Takes the agent's Action and produces a GradingResult with
-  a score from 0–100 distributed across 4 components.
+  a score from 0100 distributed across 4 components.
 
   PRIMARY METHOD: grade(action: Action) -> GradingResult
 
@@ -446,13 +446,13 @@ KEY DESIGN PRINCIPLE — ZERO INFORMATION LEAKAGE:
     - Run action.fixed_sql against a fresh database copy
     - Record success/failure
 
-  STEP 3: Grade component 1 — Syntax (10 pts)
-    _grade_syntax(success, error) → float
+  STEP 3: Grade component 1  Syntax (10 pts)
+    _grade_syntax(success, error)  float
     - 10.0 if SQL executed without error
     - 0.0 if SQL raised an exception
 
-  STEP 4: Grade component 2 — Data Integrity (45 pts)
-    _grade_data_integrity(...) → (float, bool)
+  STEP 4: Grade component 2  Data Integrity (45 pts)
+    _grade_data_integrity(...)  (float, bool)
 
     This is the most important component.
 
@@ -474,24 +474,24 @@ KEY DESIGN PRINCIPLE — ZERO INFORMATION LEAKAGE:
         - Some queries fail               = proportional partial credit
         - All queries fail                = 0.0 pts
 
-  STEP 5: Grade component 3 — Schema (35 pts)
-    _grade_schema_correctness(db) → float
+  STEP 5: Grade component 3  Schema (35 pts)
+    _grade_schema_correctness(db)  float
 
     Compares actual table schema against scenario's expected_schema.
 
     SMOOTH SCORING:
       expected_cols = set of (name, type) tuples from expected schema
       actual_cols   = set of (name, type) tuples from actual schema
-      matching      = expected_cols ∩ actual_cols
+      matching      = expected_cols  actual_cols
       ratio         = len(matching) / len(expected_cols)
       schema_score  = 35.0 * ratio
 
     BONUS/PENALTY:
-      If actual has MORE columns than expected → -5.0 (unintended schema change)
+      If actual has MORE columns than expected  -5.0 (unintended schema change)
       Final: max(0.0, schema_score)
 
-  STEP 6: Grade component 4 — Efficiency (10 pts)
-    _grade_efficiency(sql) → float
+  STEP 6: Grade component 4  Efficiency (10 pts)
+    _grade_efficiency(sql)  float
 
     PENALIZES:
       - More than 3 ALTER TABLE statements: -3 pts
@@ -500,7 +500,7 @@ KEY DESIGN PRINCIPLE — ZERO INFORMATION LEAKAGE:
       - 5+ consecutive semicolons (empty statements): -2 pts
 
   STEP 7: Generate feedback
-    _generate_feedback() → str
+    _generate_feedback()  str
 
     Produces human-readable explanation:
       "EXCELLENT: Migration fixed successfully with no side effects."
@@ -509,35 +509,35 @@ KEY DESIGN PRINCIPLE — ZERO INFORMATION LEAKAGE:
 
   TOTAL SCORE:
     total = syntax_score + data_score + schema_score + efficiency_score
-    Range: 0 – 100  (normalized to 0.0–1.0 at the API layer)
+    Range: 0  100  (normalized to 0.01.0 at the API layer)
 
 ------------------------------------------------------------------------
-7.6  app/main.py — FastAPI Server
+7.6  app/main.py  FastAPI Server
 ------------------------------------------------------------------------
 
   The HTTP interface. All endpoints are documented via OpenAPI at /docs.
 
   ENDPOINTS:
 
-    GET  /health      → {"status": "healthy", "scenarios_available": 22}
-    GET  /             → Redirect to UI
-    GET  /ui           → Interactive web interface
-    GET  /docs         → Swagger UI (auto-generated)
-    GET  /scenarios    → List all scenarios (filterable by difficulty)
-    GET  /tasks        → Alias for /scenarios (spec compliance)
-    GET  /state        → Internal episode state
-    GET  /observation  → Agent-facing observation
-    GET  /metrics      → Prometheus-compatible metrics
-    GET  /spec         → API compliance summary
+    GET  /health       {"status": "healthy", "scenarios_available": 22}
+    GET  /              Redirect to UI
+    GET  /ui            Interactive web interface
+    GET  /docs          Swagger UI (auto-generated)
+    GET  /scenarios     List all scenarios (filterable by difficulty)
+    GET  /tasks         Alias for /scenarios (spec compliance)
+    GET  /state         Internal episode state
+    GET  /observation   Agent-facing observation
+    GET  /metrics       Prometheus-compatible metrics
+    GET  /spec          API compliance summary
 
     POST /reset   body: {"task_id": "easy"|"medium"|"hard"}
-                  → Returns: Observation
+                   Returns: Observation
 
     POST /step    body: {"fixed_sql": "...", "explanation": "...", "confidence": 0.9}
-                  → Returns: {observation, reward: float[0.0-1.0], done: bool, info}
+                   Returns: {observation, reward: float[0.0-1.0], done: bool, info}
 
   REWARD NORMALIZATION (KEY SPEC COMPLIANCE):
-    The grader returns 0–100. The API normalizes before returning:
+    The grader returns 0100. The API normalizes before returning:
       reward_normalized = round(reward / 100.0, 4)
     This ensures the HTTP response is ALWAYS in [0.0, 1.0] per spec.
 
@@ -546,7 +546,7 @@ KEY DESIGN PRINCIPLE — ZERO INFORMATION LEAKAGE:
     can connect from any origin.
 
 ------------------------------------------------------------------------
-7.7  inference.py — Baseline Agent
+7.7  inference.py  Baseline Agent
 ------------------------------------------------------------------------
 
   The MANDATORY submission file. This is what the automated evaluator runs.
@@ -566,11 +566,11 @@ KEY DESIGN PRINCIPLE — ZERO INFORMATION LEAKAGE:
     - ALL other print() statements go to sys.stderr only.
 
   ENVIRONMENT VARIABLES (MANDATORY names per spec):
-    API_BASE_URL   — LLM endpoint (default: Groq)
-    MODEL_NAME     — Model name
-    HF_TOKEN       — API key
-    OPENAI_API_KEY — Falls back to HF_TOKEN
-    ENV_URL        — Running environment URL
+    API_BASE_URL    LLM endpoint (default: Groq)
+    MODEL_NAME      Model name
+    HF_TOKEN        API key
+    OPENAI_API_KEY  Falls back to HF_TOKEN
+    ENV_URL         Running environment URL
 
   AGENT STRATEGY (SQLMigrationAgent):
     - Uses OpenAI-compatible client (works with Groq, HF Inference, OpenAI)
@@ -586,7 +586,7 @@ KEY DESIGN PRINCIPLE — ZERO INFORMATION LEAKAGE:
   MAX_STEPS = 3 (keeps runtime under 20 minutes on 2 vCPU / 8 GB RAM)
 
 ------------------------------------------------------------------------
-7.8  server/app.py — Docker Entrypoint
+7.8  server/app.py  Docker Entrypoint
 ------------------------------------------------------------------------
 
   Thin wrapper that re-exports the FastAPI app:
@@ -618,7 +618,7 @@ KEY DESIGN PRINCIPLE — ZERO INFORMATION LEAKAGE:
     9. CMD: uvicorn server.app:app --host 0.0.0.0 --port 7860
 
 ------------------------------------------------------------------------
-7.10 openenv.yaml — Environment Manifest
+7.10 openenv.yaml  Environment Manifest
 ------------------------------------------------------------------------
 
   Read by: openenv validate
@@ -644,54 +644,54 @@ KEY DESIGN PRINCIPLE — ZERO INFORMATION LEAKAGE:
 7.11 requirements.txt
 ------------------------------------------------------------------------
 
-  openenv-core>=0.2.2      # MANDATORY — matches official course requirements
+  openenv-core>=0.2.2      # MANDATORY  matches official course requirements
   fastapi>=0.104.0
   uvicorn>=0.24.0
   pydantic>=2.0.0
   python-multipart>=0.0.6
   requests>=2.31.0
   httpx>=0.26.0
-  openai>=1.10.0           # MANDATORY — OpenAI-compatible client per spec
+  openai>=1.10.0           # MANDATORY  OpenAI-compatible client per spec
   python-dotenv>=1.0.0
   pytest>=7.4.0
   pytest-asyncio>=0.23.0
 
 ------------------------------------------------------------------------
-7.12 tests/ — Test Suite (12 tests, 100% pass)
+7.12 tests/  Test Suite (12 tests, 100% pass)
 ------------------------------------------------------------------------
 
   test_grader.py (5 tests):
     1. test_easy_scenario_grader
-       — Verifies that a correct fix for easy_001 achieves syntax_score=10
+        Verifies that a correct fix for easy_001 achieves syntax_score=10
          and total_score >= 90.
     2. test_hard_execution_order_grader
-       — Verifies that the expert fix for hard_001 achieves
+        Verifies that the expert fix for hard_001 achieves
          data_integrity_score=40.0 (45 - 5 for expected hash change).
     3. test_schema_smooth_scoring
-       — Verifies proportional schema credit: 3/4 columns = 26.25/35.
+        Verifies proportional schema credit: 3/4 columns = 26.25/35.
     4. test_impossible_scenarios_exist[hard_009_circular_fk_dependency]
-       — Verifies scenario exists, is HARD, hint is None.
+        Verifies scenario exists, is HARD, hint is None.
     5. test_impossible_scenarios_exist[hard_010_hidden_data_loss]
-       — Verifies scenario exists, is HARD, hint is None.
+        Verifies scenario exists, is HARD, hint is None.
 
   test_impossible_tasks.py (4 tests):
     6. test_hard_009_circular_fk_validation
-       — Expert fix (PRAGMA + table rebuild) achieves >= 80.0.
+        Expert fix (PRAGMA + table rebuild) achieves >= 80.0.
     7. test_hard_010_hidden_data_loss_validation
-       — Naive CAST fix achieves data_integrity_score < 10.
+        Naive CAST fix achieves data_integrity_score < 10.
          Expert CASE WHEN fix achieves >= 40.0.
     8. test_hard_011_invisible_fk_validation
-       — Expert table rebuild achieves data_integrity_score >= 40.0.
+        Expert table rebuild achieves data_integrity_score >= 40.0.
     9. test_hard_012_ambiguous_join_validation
-       — Naive join achieves < 40.0; precise join achieves >= 40.0.
+        Naive join achieves < 40.0; precise join achieves >= 40.0.
 
   test_scenarios.py (3 tests):
     10. test_deterministic_reset
-        — Resetting HARD difficulty twice returns same scenario_id.
+         Resetting HARD difficulty twice returns same scenario_id.
     11. test_no_hints_for_hard_scenarios
-        — Every HARD scenario has obs.hint is None.
+         Every HARD scenario has obs.hint is None.
     12. test_observation_data_integrity
-        — EASY reset returns non-null schema and sample_data.
+         EASY reset returns non-null schema and sample_data.
 
 
 ================================================================================
@@ -703,11 +703,11 @@ It determines what the agent actually learns.
 
 TOTAL SCORE FORMULA:
   total = S + D + C + E
-  S = Syntax Score       (0–10 pts)
-  D = Data Integrity     (0–45 pts)
-  C = Schema Correctness (0–35 pts)
-  E = Efficiency         (0–10 pts)
-  API output = total / 100.0 → [0.0, 1.0]
+  S = Syntax Score       (010 pts)
+  D = Data Integrity     (045 pts)
+  C = Schema Correctness (035 pts)
+  E = Efficiency         (010 pts)
+  API output = total / 100.0  [0.0, 1.0]
 
 DESIGN PHILOSOPHY:
 
@@ -733,12 +733,12 @@ DESIGN PHILOSOPHY:
        - Hash = side-effect detector
        
      If all queries pass but hash changed unexpectedly:
-       → Agent probably modified extra rows it shouldn't have
-       → -5 pts penalty
+        Agent probably modified extra rows it shouldn't have
+        -5 pts penalty
 
      If validation fails and hash is unchanged:
-       → Agent probably didn't run any SQL at all
-       → 0 pts from data_integrity
+        Agent probably didn't run any SQL at all
+        0 pts from data_integrity
 
   4. SCHEMA IS STRUCTURAL SAFETY (35 pts):
      Even if the data looks right, if the schema is wrong (wrong type,
@@ -765,14 +765,14 @@ WHY NOT USE BINARY PASS/FAIL?
 9. THE 22 SCENARIOS (FULL CATALOGUE)
 ================================================================================
 
-EASY TIER (5 scenarios) — Syntax errors, clear error messages
+EASY TIER (5 scenarios)  Syntax errors, clear error messages
 ---------------------------------------------------------------
 
   easy_001_missing_comma
     Setup:    users table (id, username)
     Bug:      ALTER TABLE users ADD COLUMN email TEXT NOT NULL
               ADD COLUMN age INTEGER;
-              (missing comma — gives "near 'ADD': syntax error")
+              (missing comma  gives "near 'ADD': syntax error")
     Fix:      Two separate ALTER TABLE statements
     Expected: users gets email (NOT NULL DEFAULT '') + age (INTEGER)
 
@@ -801,12 +801,12 @@ EASY TIER (5 scenarios) — Syntax errors, clear error messages
   easy_005_wrong_quotes
     Setup:    config table (key, value)
     Bug:      ALTER TABLE config ADD COLUMN description TEXT DEFAULT "Config";
-              (double quotes used for string — SQLite treats as identifier)
+              (double quotes used for string  SQLite treats as identifier)
     Fix:      Use single quotes for string literals
     Expected: config gets description column
 
 
-MEDIUM TIER (5 scenarios) — Constraint violations, SQLite limitations
+MEDIUM TIER (5 scenarios)  Constraint violations, SQLite limitations
 -----------------------------------------------------------------------
 
   medium_001_notnull_no_default
@@ -833,7 +833,7 @@ MEDIUM TIER (5 scenarios) — Constraint violations, SQLite limitations
 
   medium_004_type_mismatch
     Setup:    transactions with amounts [100.50, -50.25, 200.00] (one negative)
-    Bug:      Attempt to rebuild table with CHECK (amount >= 0) — negative row fails
+    Bug:      Attempt to rebuild table with CHECK (amount >= 0)  negative row fails
     Fix:      Handle the negative row (delete, fix, or exclude from constraint)
     Expected: transactions with positive amounts pass check
 
@@ -844,7 +844,7 @@ MEDIUM TIER (5 scenarios) — Constraint violations, SQLite limitations
     Expected: posts table with user_id column
 
 
-HARD TIER (12 scenarios) — Silent corruption, no error messages
+HARD TIER (12 scenarios)  Silent corruption, no error messages
 ----------------------------------------------------------------
 
   hard_001_execution_order_corruption *** PRIMARY BENCHMARK SCENARIO ***
@@ -858,11 +858,11 @@ HARD TIER (12 scenarios) — Silent corruption, no error messages
     Fix:      Separate DDL (ALTER) from DML (UPDATE). Add all required columns 
               first, then perform all data calculations. This ensures a 
               stable schema before data manipulation begins.
-    Expected: premium customers: discount=10%, final=0.9×total
+    Expected: premium customers: discount=10%, final=0.9total
               standard customers: discount=0%, final=total
 
   hard_002_column_misalignment
-    Setup:    old_products (id, name, price, category) → new_products (id, category, name, price)
+    Setup:    old_products (id, name, price, category)  new_products (id, category, name, price)
     Bug:      INSERT INTO new_products SELECT * FROM old_products;
               Because the column order of new_products (id, category, name, price)
               differs from old_products, SQLite silently maps data to the wrong
@@ -874,7 +874,7 @@ HARD TIER (12 scenarios) — Silent corruption, no error messages
     Setup:    measurements with REAL values: [3.14159, 2.71828, 1.41421]
     Bug:      ALTER TABLE measurements ADD COLUMN rounded_value INTEGER;
               UPDATE measurements SET rounded_value = value;
-              (SQLite CAST truncates not rounds: 3.14159 → 3, not round to 3)
+              (SQLite CAST truncates not rounds: 3.14159  3, not round to 3)
     Fix:      Use ROUND() explicitly: SET rounded_value = ROUND(value)
     Expected: [3, 3, 1] (correctly rounded integers)
 
@@ -905,7 +905,7 @@ HARD TIER (12 scenarios) — Silent corruption, no error messages
     Setup:    accounts (id, balance, version): [1: $1000], [2: $500]
     Bug:      UPDATE accounts SET balance = balance - 200, version = version + 1 WHERE id = 1;
               UPDATE accounts SET balance = balance + 200, version = version + 1 WHERE id = 999;
-              (id 999 doesn't exist — first UPDATE commits but second silently does nothing)
+              (id 999 doesn't exist  first UPDATE commits but second silently does nothing)
     Fix:      Wrap in TRANSACTION with validation that second update affected rows
     Expected: Total balance remains $1500, no partial transfer
 
@@ -915,26 +915,26 @@ HARD TIER (12 scenarios) — Silent corruption, no error messages
               SET price = price * (1 - discount_percent / 100)
               FROM discounts
               WHERE products.name = discounts.product_name;
-              (Widget has 2 discount rows → cartesian join applies discount TWICE)
+              (Widget has 2 discount rows  cartesian join applies discount TWICE)
     Fix:      Use a subquery with LIMIT 1 or MIN() to get single discount per product
     Expected: Correct single-discount prices
 
   hard_009_circular_fk_dependency
-    Setup:    employees table with self-referencing FK (manager_id → id)
+    Setup:    employees table with self-referencing FK (manager_id  id)
     Bug:      ALTER TABLE employees ADD FOREIGN KEY (manager_id) REFERENCES employees(id);
-              (SQLite syntax error — cannot add FK to existing table)
+              (SQLite syntax error  cannot add FK to existing table)
     Fix:      PRAGMA foreign_keys=OFF; rebuild table; PRAGMA foreign_keys=ON
     Expected: employees table preserved, FK semantically validated
 
   hard_010_hidden_data_loss
     Setup:    telemetry table with TEXT readings: ['10.5', '20.1', 'N/A', '15.7', 'MISSING']
     Bug:      Re-create table as REAL type, INSERT...SELECT casting directly
-              CAST('N/A' AS REAL) = NULL in SQLite → data destroyed
+              CAST('N/A' AS REAL) = NULL in SQLite  data destroyed
     Fix:      Use CASE WHEN to convert 'N/A'/'MISSING' to sentinel value (-1.0) first
     Expected: SUM equals 10.5 + 20.1 + (-1.0) + 15.7 + (-1.0) = 44.3
 
   hard_011_invisible_fk_conflict
-    Setup:    categories table with self-referencing FK (parent_id → id) hierarchy
+    Setup:    categories table with self-referencing FK (parent_id  id) hierarchy
     Bug:      Simple ADD COLUMN slug TEXT may fail or misbehave with active FK checks
     Fix:      Table rebuild with slug column included + FK preserved
     Expected: Category hierarchy preserved, data intact
@@ -943,13 +943,13 @@ HARD TIER (12 scenarios) — Silent corruption, no error messages
     Setup:    users (id, email) + profile (id, user_id, bio)
               profile.id = 101, profile.user_id = 1 (points to user 1 = Alice)
     Bug:      UPDATE profile SET user_id = (SELECT id FROM users WHERE users.id = profile.id);
-              Bug: profile.id = 101, but no user with id=101 → user_id becomes NULL
+              Bug: profile.id = 101, but no user with id=101  user_id becomes NULL
     Fix:      UPDATE profile SET user_id = (SELECT id FROM users WHERE users.id = profile.user_id);
               (Use profile.user_id to match, not profile.id)
     Expected: profile.user_id = 1 preserved
 
   hard_013_chained_rebuild
-    Setup:    parent (id, code UNIQUE) + child (id, p_code FK→parent.code)
+    Setup:    parent (id, code UNIQUE) + child (id, p_code FKparent.code)
     Bug:      RENAME COLUMN code TO parent_code in parent, but FK reference breaks
     Fix:      Dual table rebuild: update both parent and child simultaneously
     Expected: FK relationship maintained after column rename
@@ -981,7 +981,7 @@ WHY SHA-256?
 WHY NO HINTS FOR HARD SCENARIOS?
   If the broken_sql comment says "-- BUG: missing WHERE clause", then any
   LLM reading the comment will solve it immediately. That's not a benchmark
-  — it's just a copy-paste test.
+   it's just a copy-paste test.
 
   Hard scenarios have:
   - Neutral "intention" comments only
@@ -991,11 +991,11 @@ WHY NO HINTS FOR HARD SCENARIOS?
   This is what discriminates frontier models from weak models.
 
 SCORE DISTRIBUTIONS WE DESIGNED FOR:
-  Random agent:      ~0.02–0.05 (sometimes gets schema right by luck)
-  Rule-based:        ~0.40–0.45 (fixes obvious patterns but not edge cases)
+  Random agent:      ~0.020.05 (sometimes gets schema right by luck)
+  Rule-based:        ~0.400.45 (fixes obvious patterns but not edge cases)
   Llama-3.1-8B:      ~0.56 average (good on easy, weak on medium, poor on hard)
   GPT-4o-mini:       ~0.65 average (good on easy/medium, mediocre on hard)
-  Expert human:      ~0.90–0.95 (near-perfect but some efficiency deductions)
+  Expert human:      ~0.900.95 (near-perfect but some efficiency deductions)
   Perfect agent:     ~1.0 (theoretically possible but grader is strict enough
                            to give ~5 pts efficiency deduction on hard tasks)
 
@@ -1008,11 +1008,11 @@ DECISION 1: In-Memory SQLite vs. PostgreSQL
   Choice: In-memory SQLite
   Reason:
     - Competition requires running on 2 vCPU / 8 GB RAM in <20 minutes
-    - No external dependencies → zero setup friction for judges
+    - No external dependencies  zero setup friction for judges
     - Deterministic (same SQL = same behavior, always)
   Tradeoff:
     - Cannot model PostgreSQL-specific features (e.g., JSONB, pg_trgm)
-    - SQLite's limited ALTER TABLE is actually a FEATURE here — it creates
+    - SQLite's limited ALTER TABLE is actually a FEATURE here  it creates
       more interesting bugs that require creative fixes
 
 DECISION 2: Singleton Environment vs. Per-Request Instances
@@ -1025,10 +1025,10 @@ DECISION 2: Singleton Environment vs. Per-Request Instances
     - This is explicitly acceptable per competition rules (evaluation is serial)
 
 DECISION 3: Normalized Reward at API Layer vs. In Grader
-  Choice: Normalize at API layer (main.py), grader internally uses 0–100
+  Choice: Normalize at API layer (main.py), grader internally uses 0100
   Reason:
-    - Grader reasoning is cleaner with 0–100 (avoids floating point confusion)
-    - Spec compliance (0.0–1.0) enforced at the boundary
+    - Grader reasoning is cleaner with 0100 (avoids floating point confusion)
+    - Spec compliance (0.01.0) enforced at the boundary
     - Easy to audit: grep for "/ 100.0" in main.py
   Tradeoff:
     - Two different "reward" scales depending on whether you're in grader or API
@@ -1081,11 +1081,11 @@ ITERATION 1: Answer-Leaking Comments
 
 ITERATION 2: Binary SHA-256 Scoring
   PROBLEM: Original design used (pre_hash == post_hash) as the primary signal.
-    Any correct migration changes the hash → score was 0 for correct fixes.
+    Any correct migration changes the hash  score was 0 for correct fixes.
   FIX: Moved SHA-256 to side-effect-guardrail role. Validation queries = primary.
-    Correct fix with expected side-effects → 45.0 pts
-    Correct fix with unexpected side-effects → 40.0 pts
-    Failed validation → 0.0 pts
+    Correct fix with expected side-effects  45.0 pts
+    Correct fix with unexpected side-effects  40.0 pts
+    Failed validation  0.0 pts
 
 ITERATION 3: Binary Schema Scoring
   PROBLEM: Schema score was 0 or 35 (all-or-nothing). An agent that added
@@ -1102,7 +1102,7 @@ ITERATION 4: inference.py stdio Format
     Only [START], [STEP], and [END] lines go to sys.stdout.
 
 ITERATION 5: Reward Normalization
-  PROBLEM: Grader returned 0–100. Spec requires 0.0–1.0.
+  PROBLEM: Grader returned 0100. Spec requires 0.01.0.
     The automated evaluator checks that rewards are in [0.0, 1.0].
   FIX: Added normalization at API layer in main.py /step endpoint:
     reward_normalized = round(reward / 100.0, 4)
@@ -1129,54 +1129,54 @@ ITERATION 7: Deterministic Reset
 13. COMPETITION COMPLIANCE CHECKLIST
 ================================================================================
 
-PHASE 1 AUTOMATED GATE — ALL MUST PASS:
+PHASE 1 AUTOMATED GATE  ALL MUST PASS:
 
-  [✓] HF Space deploys
+  [] HF Space deploys
       URL: https://shyamalancode-sql-migration-env.hf.space
       Responds to POST /reset with HTTP 200
 
-  [✓] openenv validate passes
+  [] openenv validate passes
       Command: openenv validate
       Output: [OK] sql-migration-env: Ready for multi-mode deployment
 
-  [✓] Dockerfile builds
+  [] Dockerfile builds
       docker build + docker run on port 7860
 
-  [✓] Baseline reproduces
+  [] Baseline reproduces
       python inference.py runs without error, emits [START]/[STEP]/[END]
 
-  [✓] 3+ tasks with graders
+  [] 3+ tasks with graders
       Tasks: easy, medium, hard
       All graders return scores in [0.0, 1.0]
 
 MANDATORY FIELDS IN inference.py:
-  [✓] API_BASE_URL   environment variable
-  [✓] MODEL_NAME     environment variable
-  [✓] HF_TOKEN       environment variable
-  [✓] Uses OpenAI client for LLM calls
-  [✓] [START]/[STEP]/[END] stdout format
+  [] API_BASE_URL   environment variable
+  [] MODEL_NAME     environment variable
+  [] HF_TOKEN       environment variable
+  [] Uses OpenAI client for LLM calls
+  [] [START]/[STEP]/[END] stdout format
 
 MODEL FIELDS (Pydantic):
-  [✓] Typed Action model
-  [✓] Typed Observation model
-  [✓] Typed State model
-  [✓] step() returns observation, reward, done, info
-  [✓] reset() returns initial observation
-  [✓] state() returns current state
+  [] Typed Action model
+  [] Typed Observation model
+  [] Typed State model
+  [] step() returns observation, reward, done, info
+  [] reset() returns initial observation
+  [] state() returns current state
 
 INFRASTRUCTURE:
-  [✓] Port 7860
-  [✓] Health check at /health
-  [✓] CORS open (allow_origins=["*"])
-  [✓] Non-root user in Docker (security)
+  [] Port 7860
+  [] Health check at /health
+  [] CORS open (allow_origins=["*"])
+  [] Non-root user in Docker (security)
 
 README:
-  [✓] Environment description and motivation
-  [✓] Action space definition (table with types)
-  [✓] Observation space definition (table with types)
-  [✓] Task descriptions with expected difficulty
-  [✓] Setup and usage instructions
-  [✓] Baseline scores
+  [] Environment description and motivation
+  [] Action space definition (table with types)
+  [] Observation space definition (table with types)
+  [] Task descriptions with expected difficulty
+  [] Setup and usage instructions
+  [] Baseline scores
 
 
 ================================================================================
@@ -1201,8 +1201,8 @@ HOW TO PUSH UPDATES:
   git push space main
 
 GIT REMOTE CONFIGURATION:
-  origin → https://github.com/ShyamAlancode/sql-migration-env.git
-  space  → https://huggingface.co/spaces/ShyamAlancode/sql-migration-env
+  origin  https://github.com/ShyamAlancode/sql-migration-env.git
+  space   https://huggingface.co/spaces/ShyamAlancode/sql-migration-env
 
 LOCAL DEVELOPMENT:
   pip install -r requirements.txt
@@ -1220,11 +1220,11 @@ LOCAL DEVELOPMENT:
 
 TEST SUITE:
   pytest tests/
-  → 12 passed in 0.41s (100% pass rate)
+   12 passed in 0.41s (100% pass rate)
 
 OPENENV VALIDATION:
   openenv validate
-  → [OK] sql-migration-env: Ready for multi-mode deployment
+   [OK] sql-migration-env: Ready for multi-mode deployment
 
 SCENARIO COUNT: 22 total
   Easy:   5 scenarios
@@ -1251,10 +1251,10 @@ MEASURED BASELINE SCORES:
   GPT-4o-mini:      easy=0.94  medium=0.72  hard=0.29  avg=0.65
 
 GITHUB COMMITS:
-  f754e99 — Initial submission with 15 scenarios
-  16875a4 — Meta-Grade Hardening: Impossible Scenarios 11-13
-  83017f4 — CRITICAL: Spec-compliant inference.py + reward normalization
-  d60a710 — Final Polish: Address Mentor Feedback, Hardened Hard Scenarios
+  f754e99  Initial submission with 15 scenarios
+  16875a4  Meta-Grade Hardening: Impossible Scenarios 11-13
+  83017f4  CRITICAL: Spec-compliant inference.py + reward normalization
+  d60a710  Final Polish: Address Mentor Feedback, Hardened Hard Scenarios
 
 
 ================================================================================
@@ -1281,7 +1281,7 @@ Q: Is the reward function stable / not gameable?
 A: It's stable for the current scenario set. It could theoretically be gamed
    by an agent that knows the exact validation queries and crafts a specific
    response just to pass them. In Phase 3, Meta engineers do "exploit checks"
-   for this — we're designed to pass because our validation queries test
+   for this  we're designed to pass because our validation queries test
    holistic data state, not narrow checks.
 
 Q: Why is the Max Score ~95 for an expert rather than 100?
@@ -1291,7 +1291,7 @@ A: This is intentional. The efficiency scorer penalizes destructive table
    preventing a "perfect ceiling" that would eliminate grade discrimination.
 
 Q: What happens if two agents run simultaneously?
-A: The environment is a singleton — concurrent requests will interfere.
+A: The environment is a singleton  concurrent requests will interfere.
    This is explicitly acceptable because OpenEnv evaluation is sequential
    (one agent runs at a time). For production concurrent use, the architecture
    would need per-request database instances.
@@ -1301,7 +1301,7 @@ A: Each test verifies a specific property:
    - test_deterministic_reset: Reproducibility for Phase 2 re-runs
    - test_no_hints_for_hard: Information-leakage prevention
    - test_hard_009/010/011/012: Scenario discrimination (naive < expert)
-   The tests failed initially and had to be fixed — they caught real bugs
+   The tests failed initially and had to be fixed  they caught real bugs
    in scenario definitions and grader logic.
 
 Q: What does "smooth scoring" actually do for RL training?
@@ -1319,5 +1319,5 @@ A: The competition rewards the environment itself, not the agent.
 
 ================================================================================
   END OF DOCUMENT
-  Total scenarios: 22 | Tests: 12/12 | Validation: PASSED | Deployed: ✓
+  Total scenarios: 22 | Tests: 12/12 | Validation: PASSED | Deployed: 
 ================================================================================

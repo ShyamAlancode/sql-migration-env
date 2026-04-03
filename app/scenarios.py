@@ -1,6 +1,6 @@
 """
 Migration test scenarios for sql-migration-env
-15 test cases: 5 Easy, 5 Medium, 5 Hard (Silent Corruption)
+23 scenarios: 5 Easy, 5 Medium, 13 Hard (Silent Corruption)
 """
 
 from app.models import MigrationScenario, DifficultyLevel, SchemaInfo
@@ -280,7 +280,7 @@ MEDIUM_SCENARIOS = [
 
 
 # ============================================================================
-# HARD SCENARIOS: Silent Data Corruption (5 cases) - THE KILLER FEATURE
+# HARD SCENARIOS: Silent Data Corruption (13 cases) - THE KILLER FEATURE
 # ============================================================================
 
 HARD_SCENARIOS = [

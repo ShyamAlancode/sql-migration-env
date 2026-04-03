@@ -1,9 +1,11 @@
 """
 FastAPI server for SQL Migration Safety Gym
 OpenEnv Hackathon 2026 - Spec Compliant Version
+Session-based concurrency: each X-Session-ID gets its own SQLMigrationEnv instance.
+Falls back to global singleton if no header provided (backward compat).
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -11,6 +13,7 @@ from contextlib import asynccontextmanager
 from typing import Optional
 from pydantic import BaseModel
 import os
+import uuid
 
 from app.models import Action, Observation, DifficultyLevel, GradingResult
 from app.environment import SQLMigrationEnv, get_env
@@ -35,14 +38,30 @@ class StepResponse(BaseModel):
     info: dict
 
 
+# ── Session Registry ──────────────────────────────────────────────────────────
+# Maps session_id → SQLMigrationEnv instance
+_session_registry: dict[str, SQLMigrationEnv] = {}
+
+def get_session_env(session_id: Optional[str]) -> SQLMigrationEnv:
+    """
+    Return the env for the given session_id, or the global singleton if None.
+    Creates a new per-session env on first access.
+    """
+    if not session_id:
+        return get_env()  # backward-compat: global singleton
+    if session_id not in _session_registry:
+        _session_registry[session_id] = SQLMigrationEnv()
+    return _session_registry[session_id]
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events"""
-    print("🚀 Starting SQL Migration Safety Gym server...")
+    print("Starting SQL Migration Safety Gym server...")
     env = get_env()
-    print(f"✅ Environment ready with {len(ALL_SCENARIOS)} scenarios")
+    print(f"Environment ready with {len(ALL_SCENARIOS)} scenarios")
     yield
-    print("🛑 Shutting down server...")
+    print("Shutting down server...")
 
 
 app = FastAPI(
@@ -60,7 +79,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Add after app creation
 # Create static directory if not exists
 os.makedirs("static", exist_ok=True)
 
@@ -84,6 +102,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Session-ID"],
 )
 
 
@@ -127,24 +146,34 @@ async def list_tasks():
 
 @app.post("/reset", 
           summary="Reset SQL Environment",
-          description="Initializes the SQL sandbox for a given task_id (easy/medium/hard) or specific scenario_id. Returns the initial observation.")
-async def reset_environment(request: ResetRequest):
+          description=(
+              "Initializes the SQL sandbox for a given task_id (easy/medium/hard) or specific "
+              "scenario_id. Returns the initial observation. Optionally provide X-Session-ID "
+              "header for isolated concurrent sessions; if absent, uses global singleton."
+          ))
+async def reset_environment(
+    request: ResetRequest,
+    response: Response,
+    x_session_id: Optional[str] = Header(default=None)
+):
     """
     Reset environment to initial state.
-    Accepts task_id (easy/medium/hard) per OpenEnv spec.
+    - If X-Session-ID header is provided: uses/creates a per-session env.
+    - If absent: falls back to global singleton (backward compat).
+    - Returns X-Session-ID header so clients can track their session.
     """
-    env = get_env()
-    
+    # Generate new session ID if client didn't provide one
+    session_id = x_session_id or str(uuid.uuid4())
+    env = get_session_env(session_id)
+
     # Priority: task_id > scenario_id > difficulty
     diff_enum = None
     effective_scenario_id = request.scenario_id
     
     if request.task_id:
-        # task_id is difficulty level: easy, medium, hard
         try:
             diff_enum = DifficultyLevel(request.task_id.lower())
         except ValueError:
-            # If not a valid difficulty, treat as scenario_id
             effective_scenario_id = request.task_id
     elif request.difficulty:
         try:
@@ -154,6 +183,7 @@ async def reset_environment(request: ResetRequest):
     
     try:
         obs = env.reset(scenario_id=effective_scenario_id, difficulty=diff_enum)
+        response.headers["X-Session-ID"] = session_id
         return obs
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -164,10 +194,17 @@ async def reset_environment(request: ResetRequest):
 @app.post("/step", 
           summary="Apply Migration Fix",
           response_model=StepResponse,
-          description="Executes a multi-statement SQL migration against the sandbox, grades the result, and returns rewards/observations.")
-async def step_environment(request: StepRequest):
+          description=(
+              "Executes a multi-statement SQL migration against the sandbox, grades the result, "
+              "and returns rewards/observations. Provide X-Session-ID to route to your session. "
+              "Falls back to global singleton if header absent."
+          ))
+async def step_environment(
+    request: StepRequest,
+    x_session_id: Optional[str] = Header(default=None)
+):
     """Execute one step in the environment"""
-    env = get_env()
+    env = get_session_env(x_session_id)
     
     action = Action(
         fixed_sql=request.fixed_sql,
@@ -194,12 +231,12 @@ async def step_environment(request: StepRequest):
 @app.get("/state",
          summary="Get Internal State",
          description="Returns the full internal state of the current episode, including history and step counts. Hidden from agents.")
-async def get_current_state():
+async def get_current_state(x_session_id: Optional[str] = Header(default=None)):
     """
     Get current INTERNAL STATE (not observation).
     Returns: episode_id, step_count, done, history, etc.
     """
-    env = get_env()
+    env = get_session_env(x_session_id)
     try:
         return env.state()
     except RuntimeError as e:
@@ -209,12 +246,12 @@ async def get_current_state():
 @app.get("/observation",
          summary="Get Agent Observation",
          description="Returns only the signal visible to the agent: schema, sample data, and hints.")
-async def get_current_observation():
+async def get_current_observation(x_session_id: Optional[str] = Header(default=None)):
     """
     Get current AGENT OBSERVATION (what agent sees).
     Returns: broken_sql, schema, sample_data, hints.
     """
-    env = get_env()
+    env = get_session_env(x_session_id)
     try:
         return env.observation()
     except RuntimeError as e:
@@ -222,9 +259,9 @@ async def get_current_observation():
 
 
 @app.get("/stats")
-async def get_episode_stats():
+async def get_episode_stats(x_session_id: Optional[str] = Header(default=None)):
     """Get statistics for current episode"""
-    env = get_env()
+    env = get_session_env(x_session_id)
     stats = env.get_episode_stats()
     if not stats:
         raise HTTPException(status_code=404, detail="No active episode. Call /reset first.")
@@ -234,16 +271,16 @@ async def get_episode_stats():
 @app.get("/metrics",
          summary="Prometheus Metrics",
          description="Returns environment metrics in a format compatible with production monitoring tools.")
-async def get_metrics():
+async def get_metrics(x_session_id: Optional[str] = Header(default=None)):
     """Prometheus-compatible metrics for production monitoring"""
-    env = get_env()
+    env = get_session_env(x_session_id)
     state = env.state()
     
     return {
         "openenv_steps_total": state.get("step_count", 0),
         "openenv_episodes_total": 1 if state.get("episode_id") else 0,
-        "openenv_active_sessions": 1 if not state.get("done", True) else 0,
-        "openenv_errors_total": 0,  # Track if you add error counting
+        "openenv_active_sessions": len(_session_registry),
+        "openenv_errors_total": 0,
         "scenarios_available": len(ALL_SCENARIOS),
         "version": "1.0.0"
     }
@@ -265,9 +302,10 @@ async def spec_compliance():
         "environment": "SQLMigrationEnv",
         "observation_space": "Observation (Pydantic)",
         "action_space": "Action (Pydantic)",
-        "reward_range": [0.0, 1.1],
+        "reward_range": [0.0, 1.0],
         "max_episode_steps": 5,
-        "compliance": "RFC 001, 002, 003"
+        "compliance": "RFC 001, 002, 003",
+        "concurrency": "Session-isolated via X-Session-ID header"
     }
 
 
