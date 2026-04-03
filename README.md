@@ -41,6 +41,21 @@ These failures share a pattern: the migration _ran successfully_ but left data p
 
 ---
 
+## Benchmarks
+
+The environment produces measurable, significant gaps across agent competencies:
+
+| Agent | Easy | Medium | Hard | Average |
+|-------|:----:|:------:|:----:|:-------:|
+| **Random (`SELECT 1;`)** | 0.03 | 0.01 | 0.01 | **0.02** |
+| **Rule-based (heuristics)** | 0.82 | 0.38 | 0.07 | **0.42** |
+| **Llama-3.1-8B (Groq)** | 0.91 | 0.58 | 0.18 | **0.56** |
+| **GPT-4o-mini** | 0.94 | 0.72 | 0.29 | **0.65** |
+
+> The **6× gap** between rule-based and frontier LLM agents on Hard tasks proves genuine discriminative signal. Hard tasks **cannot** be solved by matching error messages — they require deep reasoning about SQL execution semantics.
+
+---
+
 ## Quick Start
 
 ```bash
@@ -55,21 +70,6 @@ curl -X POST https://shyamalancode-sql-migration-env.hf.space/step \
   -H "Content-Type: application/json" \
   -d '{"fixed_sql": "BEGIN; ALTER TABLE orders ADD COLUMN discount_pct REAL DEFAULT 0.0; ALTER TABLE orders ADD COLUMN final_amount REAL DEFAULT 0.0; UPDATE orders SET discount_pct = total_amount * 0.10 WHERE customer_tier = '\''premium'\'' ; UPDATE orders SET final_amount = total_amount * (1 - discount_pct); COMMIT;", "confidence": 0.9}'
 ```
-
----
-
-## Benchmarks
-
-The environment produces measurable, significant gaps across agent competencies:
-
-| Agent | Easy | Medium | Hard | Average |
-|-------|:----:|:------:|:----:|:-------:|
-| **Random (`SELECT 1;`)** | 0.03 | 0.01 | 0.01 | **0.02** |
-| **Rule-based (heuristics)** | 0.82 | 0.38 | 0.07 | **0.42** |
-| **Llama-3.1-8B (Groq)** | 0.91 | 0.58 | 0.18 | **0.56** |
-| **GPT-4o-mini** | 0.94 | 0.72 | 0.29 | **0.65** |
-
-> The **6× gap** between rule-based and frontier LLM agents on Hard tasks proves genuine discriminative signal. Hard tasks **cannot** be solved by matching error messages — they require deep reasoning about SQL execution semantics.
 
 ---
 
@@ -146,6 +146,9 @@ reward = syntax_score (10) + data_integrity_score (45) + schema_score (35) + eff
 | **Efficiency** | 10 | Penalizes `SELECT *` without `WHERE`/`LIMIT`; penalizes `UPDATE` without `WHERE` on easy/medium; penalizes >3 ALTER statements |
 
 All rewards returned by `/step` are **normalized to `[0.0, 1.0]`**.
+
+> [!IMPORTANT]
+> **Scoring Note:** Due to strict SHA-256 data integrity guardrails and aggressive efficiency penalties (e.g., against unbounded `SELECT *`), achieving a perfect score of **1.0** is extremely challenging. A measured score of **>0.90** is considered **Master Tier** performance, indicating production-grade SQL stability.
 
 ---
 
