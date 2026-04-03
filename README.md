@@ -58,7 +58,7 @@ curl -X POST https://shyamalancode-sql-migration-env.hf.space/step \
 
 ---
 
-## Discrimination Evidence
+## Benchmarks
 
 The environment produces measurable, significant gaps across agent competencies:
 

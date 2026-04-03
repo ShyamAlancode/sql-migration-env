@@ -349,7 +349,6 @@ HARD_SCENARIOS = [
                 (2, 'Gadget', 29.99, 'Electronics');
         """,
         broken_migration="""
-            -- Intention: Migrate all data to the new product table schema
             INSERT INTO new_products SELECT * FROM old_products;
         """,
         expected_schema=None,
@@ -467,7 +466,6 @@ HARD_SCENARIOS = [
                 (4, 1, 'completed', 300.00);
         """,
         broken_migration="""
-            -- Intention: Delete pending orders from inactive users
             DELETE FROM orders 
             WHERE status = 'pending' 
             AND user_id IN (
@@ -723,7 +721,6 @@ HARD_SCENARIOS = [
                 ('S06', '88.9');
         """,
         broken_migration="""
-            -- Intention: migrate raw_value from TEXT to REAL for analytics
             ALTER TABLE sensor_readings RENAME TO sensor_readings_old;
             CREATE TABLE sensor_readings (
                 id INTEGER PRIMARY KEY,
