@@ -48,11 +48,12 @@ These failures share a pattern: the migration _ran successfully_ but left data p
 curl -X POST https://shyamalancode-sql-migration-env.hf.space/reset \
   -H "Content-Type: application/json" \
   -d '{"task_id": "hard"}'
+# Returns: {"observation": {...}, "done": false, "reward": null}
 
 # Submit a fix
 curl -X POST https://shyamalancode-sql-migration-env.hf.space/step \
   -H "Content-Type: application/json" \
-  -d '{"fixed_sql": "ALTER TABLE orders ADD COLUMN discount_pct REAL DEFAULT 0.0;\nUPDATE orders SET discount_pct = 0.15 WHERE customer_tier = '\''premium'\'';\nUPDATE orders SET final_amount = total_amount * (1 - discount_pct);", "confidence": 0.9}'
+  -d '{"fixed_sql": "BEGIN; ALTER TABLE orders ADD COLUMN discount_pct REAL DEFAULT 0.0; ALTER TABLE orders ADD COLUMN final_amount REAL DEFAULT 0.0; UPDATE orders SET discount_pct = total_amount * 0.10 WHERE customer_tier = '\''premium'\'' ; UPDATE orders SET final_amount = total_amount * (1 - discount_pct); COMMIT;", "confidence": 0.9}'
 ```
 
 ---
@@ -142,7 +143,7 @@ reward = syntax_score (10) + data_integrity_score (45) + schema_score (35) + eff
 | **Syntax** | 10 | Valid SQL execution without parse/runtime error |
 | **Data Integrity** | 45 | Proportional to validation queries passed; SHA-256 guardrail penalizes unintended state changes (−5 pts) |
 | **Schema** | 35 | Proportional to correct columns/constraints present in final schema |
-| **Efficiency** | 10 | Penalizes DROP+CREATE table recreation; penalizes `SELECT *` on hard scenarios |
+| **Efficiency** | 10 | Penalizes `SELECT *` without `WHERE`/`LIMIT`; penalizes `UPDATE` without `WHERE` on easy/medium; penalizes >3 ALTER statements |
 
 All rewards returned by `/step` are **normalized to `[0.0, 1.0]`**.
 
