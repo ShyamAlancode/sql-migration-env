@@ -1,6 +1,6 @@
 """
 Migration test scenarios for sql-migration-env
-23 scenarios: 5 Easy, 5 Medium, 13 Hard (Silent Corruption)
+24 scenarios: 5 Easy, 5 Medium, 14 Hard (Silent Corruption)
 """
 
 from app.models import MigrationScenario, DifficultyLevel, SchemaInfo
@@ -280,7 +280,7 @@ MEDIUM_SCENARIOS = [
 
 
 # ============================================================================
-# HARD SCENARIOS: Silent Data Corruption (13 cases) - THE KILLER FEATURE
+# HARD SCENARIOS: Silent Data Corruption (14 cases) - THE KILLER FEATURE
 # ============================================================================
 
 HARD_SCENARIOS = [
@@ -698,6 +698,50 @@ HARD_SCENARIOS = [
         ],
         expected_results=[
             []
+        ],
+        hint=None,
+        is_silent_corruption=True
+    ),
+
+    # hard_014: Data Poisoning — multi-step long-horizon reasoning required
+    MigrationScenario(
+        id="hard_014_data_poisoning",
+        difficulty=DifficultyLevel.HARD,
+        description="TEXT→REAL column migration silently NULLs non-numeric 'poison' rows; agent must sanitize first",
+        setup_sql="""
+            CREATE TABLE sensor_readings (
+                id INTEGER PRIMARY KEY,
+                sensor_id TEXT NOT NULL,
+                raw_value TEXT
+            );
+            INSERT INTO sensor_readings (sensor_id, raw_value) VALUES
+                ('S01', '23.4'),
+                ('S02', '41.7'),
+                ('S03', 'ERR_404'),
+                ('S04', '15.2'),
+                ('S05', 'N/A'),
+                ('S06', '88.9');
+        """,
+        broken_migration="""
+            -- Intention: migrate raw_value from TEXT to REAL for analytics
+            ALTER TABLE sensor_readings RENAME TO sensor_readings_old;
+            CREATE TABLE sensor_readings (
+                id INTEGER PRIMARY KEY,
+                sensor_id TEXT NOT NULL,
+                raw_value REAL
+            );
+            INSERT INTO sensor_readings SELECT * FROM sensor_readings_old;
+            DROP TABLE sensor_readings_old;
+        """,
+        validation_queries=[
+            "SELECT COUNT(*) as total FROM sensor_readings",
+            "SELECT COUNT(*) as nulls FROM sensor_readings WHERE raw_value IS NULL",
+            "SELECT ROUND(SUM(raw_value), 1) as total FROM sensor_readings WHERE raw_value IS NOT NULL"
+        ],
+        expected_results=[
+            [{"total": 6}],
+            [{"nulls": 0}],       # Agent must replace ERR_404 and N/A before casting
+            [{"total": 269.2}]    # 23.4+41.7+0.0+15.2+0.0+88.9 if cleaned as 0.0, or full sum if replaced
         ],
         hint=None,
         is_silent_corruption=True

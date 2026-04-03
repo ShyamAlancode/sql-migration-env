@@ -53,10 +53,10 @@ def log_step(step: int, action: str, reward: float, done: bool, error: Optional[
     """Emit [STEP] line — MANDATORY FORMAT."""
     error_val = error if error else "null"
     done_val  = str(done).lower()
-    # Sanitize action — remove newlines, truncate to 120 chars
-    action_safe = action.replace("\n", " ").replace("\r", "").strip()[:120]
+    # Sanitize action — remove newlines, truncate to 100 chars, no repr quotes
+    action_safe = action.replace("\n", " ").replace("\r", "").replace("\t", " ").strip()[:100]
     print(
-        f"[STEP] step={step} action={action_safe!r} reward={reward:.2f} done={done_val} error={error_val}",
+        f"[STEP] step={step} action={action_safe} reward={reward:.2f} done={done_val} error={error_val}",
         flush=True,
     )
 
@@ -186,6 +186,7 @@ def run_episode(agent: SQLMigrationAgent, task_id: str) -> Dict[str, Any]:
 
     rewards: List[float] = []
     steps_taken = 0
+    score = 0.0
     success = False
     error_msg = None
 
@@ -197,7 +198,9 @@ def run_episode(agent: SQLMigrationAgent, task_id: str) -> Dict[str, Any]:
             timeout=30,
         )
         reset_resp.raise_for_status()
-        obs = reset_resp.json()
+        reset_data = reset_resp.json()
+        # SPEC: /reset returns {observation: {...}, done: false, reward: null}
+        obs = reset_data.get("observation", reset_data)  # graceful fallback for old flat format
 
         for step in range(1, MAX_STEPS + 1):
             # Get action from LLM
@@ -246,9 +249,7 @@ def run_episode(agent: SQLMigrationAgent, task_id: str) -> Dict[str, Any]:
             if done:
                 break
 
-        # Compute success
-        best_reward = max(rewards) if rewards else 0.0
-        score = best_reward  # already normalized 0.0-1.0 from /step
+        score = max(rewards) if rewards else 0.0  # best step reward, already 0-1
         success = score >= SUCCESS_THRESHOLD
 
     except Exception as exc:
@@ -259,11 +260,11 @@ def run_episode(agent: SQLMigrationAgent, task_id: str) -> Dict[str, Any]:
         score = 0.0
 
     finally:
-        log_end(success=success, steps=steps_taken, score=score if 'score' in dir() else 0.0, rewards=rewards)
+        log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
 
     return {
         "task": task_id,
-        "score": score if 'score' in dir() else 0.0,
+        "score": score,
         "steps": steps_taken,
         "success": success,
     }

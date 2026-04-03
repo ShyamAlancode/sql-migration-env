@@ -9,7 +9,7 @@
 
 ## 3-Sentence Pitch
 
-SQL Migration Safety Gym is the first OpenEnv environment targeting silent data corruption — SQL migrations that execute successfully with exit code 0 but permanently corrupt production data. Unlike syntax checkers, our SHA-256 state hashing and 23 hand-crafted scenarios detect semantic bugs that pass all syntax checks. Baseline testing shows our grader sharply discriminates between random agents (avg 0.02), heuristic agents (avg 0.42), and frontier LLMs (avg 0.65), especially on 13 "Impossible Task" hard scenarios designed to resist 8B-class models.
+SQL Migration Safety Gym is the first OpenEnv environment targeting silent data corruption — SQL migrations that execute successfully with exit code 0 but permanently corrupt production data. Unlike syntax checkers, our SHA-256 state hashing and 24 hand-crafted scenarios detect semantic bugs that pass all syntax checks. Baseline testing shows our grader sharply discriminates between random agents (avg 0.02), heuristic agents (avg 0.42), and frontier LLMs (avg 0.65), especially on 14 "Impossible Task" hard scenarios designed to resist 8B-class models.
 
 ---
 
@@ -47,7 +47,7 @@ SQL Migration Safety Gym is the first OpenEnv environment targeting silent data 
 - All 10 spec requirements met
 - `openenv validate` passes with `[OK]`
 - `pytest tests/` — 12/12 passed
-- `/health` returns `{"status": "healthy", "scenarios_available": 23}`
+- `/health` returns `{"status": "healthy", "scenarios_available": 24}`
 - Rewards strictly in `[0.0, 1.0]`
 - `inference.py` runs end-to-end with `[START]`/`[STEP]`/`[END]` markers
 
@@ -94,7 +94,7 @@ The `MigrationGrader` class in `app/grader.py`:
 - [x] README has measured baseline table
 - [x] `/ui` shows animated score breakdown after submission
 - [x] Dockerfile builds cleanly
-- [x] 23 scenarios confirmed in `/health` response
+- [x] 24 scenarios confirmed in `/health` response
 - [x] All 12 pytest tests pass
 - [x] Hard scenarios: LLM scores < 0.35
 - [x] Session-based concurrency supported via `X-Session-ID`

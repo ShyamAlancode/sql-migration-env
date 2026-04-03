@@ -186,24 +186,43 @@ class MigrationGrader:
         return max(0.0, schema_score)
     
     def _grade_efficiency(self, sql: str) -> float:
-        """10 points for efficient SQL (no redundant ops, proper syntax)"""
+        """
+        10 points for professional, targeted SQL.
+        Penalises brute-force patterns that indicate the agent is 'fishing'.
+        """
         score = 10.0
         upper = sql.upper()
-        
-        # Penalize obvious inefficiencies
+
+        # Penalise SELECT * without a WHERE or LIMIT clause
+        # (agents fishing for data to understand the schema instead of fixing it)
+        select_star_matches = re.findall(r'\bSELECT\s+\*\b', upper)
+        for _ in select_star_matches:
+            # Check if the surrounding context has WHERE or LIMIT
+            if not re.search(r'\bSELECT\s+\*.*?\b(WHERE|LIMIT)\b', upper, re.S):
+                score -= 3  # Penalise each unbounded SELECT *
+
+        # Penalise too many ALTER TABLE statements (inefficient incremental approach)
         if upper.count("ALTER TABLE") > 3:
-            score -= 3  # Too many alter statements
-        
+            score -= 3
+
+        # Penalise destructive recreation when ALTER would suffice (easy/medium scenarios)
         if "DROP TABLE" in upper and "CREATE TABLE" in upper:
-            score -= 5  # Destructive recreation instead of ALTER
-        
-        if "SELECT *" in upper and any(s.is_silent_corruption for s in [self.scenario]):
-            # Discourage SELECT * in complex/hard scenarios
+            if self.scenario.difficulty != DifficultyLevel.HARD:
+                score -= 4  # Rebuilding table unnecessarily on easy/medium
+
+        # Penalise empty statement chains (copy-paste artifacts)
+        if ";;" in sql or sql.count(";") > 8:
             score -= 2
-        
-        if ";" * 5 in sql:  # Multiple semicolons (empty statements)
-            score -= 2
-        
+
+        # Penalise UPDATE without WHERE on non-hard scenarios
+        # (bulk update all rows = agent doesn't understand scope)
+        if self.scenario.difficulty != DifficultyLevel.HARD:
+            update_no_where = re.search(
+                r'\bUPDATE\s+\w+\s+SET\b(?!.*\bWHERE\b)', upper, re.S
+            )
+            if update_no_where:
+                score -= 3
+
         return max(0.0, score)
     
     def _rows_match(self, actual: List[Dict], expected: List[Dict]) -> bool:

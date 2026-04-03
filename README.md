@@ -72,7 +72,7 @@ The environment produces measurable, significant gaps across agent competencies:
 
 ---
 
-## The 23 Scenarios
+## The 24 Scenarios
 
 Each scenario is a real-world migration failure pattern with deterministic grading.
 
@@ -121,6 +121,7 @@ These migrations **execute without error** but silently corrupt production data.
 | `hard_011_invisible_fk_conflict` | ALTER on self-referencing table blocked without PRAGMA bypass | Constraint bypass |
 | `hard_012_ambiguous_join_corruption` | Join on overlapping `id` column corrupts `user_id` values | Ambiguous join |
 | `hard_013_chained_rebuild` | Renaming FK-target column breaks child table reference | Chained FK rebuild |
+| `hard_014_data_poisoning` | TEXT→REAL migration silently NULLs non-numeric rows; requires multi-step sanitize-then-cast | Data poisoning |
 
 
 **Agent strategy:** Reason about SQLite execution semantics; no hints provided.  
@@ -156,7 +157,7 @@ graph TD
     C --> D[SQLMigrationEnv]
     D --> E[MigrationGrader<br>SHA-256 Guardrails]
     D --> F[SQLite Sandbox<br>In-Memory]
-    D --> G[23 Production Scenarios<br>5 Easy · 5 Medium · 13 Hard]
+    D --> G[24 Production Scenarios<br>5 Easy · 5 Medium · 14 Hard]
 ```
 
 ---
@@ -222,7 +223,7 @@ pytest tests/            # Must return 12/12 passed
 | `openenv.yaml` manifest | ✅ |
 | `openenv validate` passes | ✅ |
 | `Dockerfile` + HF Space deployment | ✅ Port 7860 |
-| 3+ tasks with graders (easy/medium/hard) | ✅ 23 scenarios |
+| 3+ tasks with graders (easy/medium/hard) | ✅ 24 scenarios |
 | Baseline `inference.py` with `[START]/[STEP]/[END]` format | ✅ |
 | Session-based isolation (`X-Session-ID`) | ✅ |
 

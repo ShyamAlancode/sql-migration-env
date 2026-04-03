@@ -144,12 +144,20 @@ async def list_tasks():
     return await list_scenarios()
 
 
-@app.post("/reset", 
+class ResetResponse(BaseModel):
+    """OpenEnv-spec reset response: nested observation + done + reward"""
+    observation: Observation
+    done: bool = False
+    reward: Optional[float] = None
+
+
+@app.post("/reset",
           summary="Reset SQL Environment",
+          response_model=ResetResponse,
           description=(
               "Initializes the SQL sandbox for a given task_id (easy/medium/hard) or specific "
-              "scenario_id. Returns the initial observation. Optionally provide X-Session-ID "
-              "header for isolated concurrent sessions; if absent, uses global singleton."
+              "scenario_id. Returns the OpenEnv-spec response: {observation, done, reward}. "
+              "Optionally provide X-Session-ID header for isolated concurrent sessions."
           ))
 async def reset_environment(
     request: ResetRequest,
@@ -158,18 +166,17 @@ async def reset_environment(
 ):
     """
     Reset environment to initial state.
-    - If X-Session-ID header is provided: uses/creates a per-session env.
+    Returns official OpenEnv structure: {"observation": {...}, "done": false, "reward": null}
+    - If X-Session-ID header provided: uses/creates a per-session env.
     - If absent: falls back to global singleton (backward compat).
-    - Returns X-Session-ID header so clients can track their session.
     """
-    # Generate new session ID if client didn't provide one
     session_id = x_session_id or str(uuid.uuid4())
     env = get_session_env(session_id)
 
     # Priority: task_id > scenario_id > difficulty
     diff_enum = None
     effective_scenario_id = request.scenario_id
-    
+
     if request.task_id:
         try:
             diff_enum = DifficultyLevel(request.task_id.lower())
@@ -180,11 +187,12 @@ async def reset_environment(
             diff_enum = DifficultyLevel(request.difficulty.lower())
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid difficulty: {request.difficulty}")
-    
+
     try:
         obs = env.reset(scenario_id=effective_scenario_id, difficulty=diff_enum)
         response.headers["X-Session-ID"] = session_id
-        return obs
+        # SPEC COMPLIANCE: return nested {observation, done, reward} — required by EnvClient
+        return ResetResponse(observation=obs, done=False, reward=None)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
