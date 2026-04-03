@@ -43,7 +43,7 @@ EASY_SCENARIOS = [
             {"id": 1, "username": "alice", "email": "", "age": None},
             {"id": 2, "username": "bob", "email": "", "age": None}
         ]],
-        hint="Check for missing commas between ADD COLUMN statements. Use DEFAULT for NOT NULL columns.",
+        hint="Check the structure of multi-column ALTER TABLE statements",
         is_silent_corruption=False
     ),
     
@@ -763,11 +763,3 @@ def get_scenario(scenario_id: str) -> MigrationScenario:
 def get_scenarios_by_difficulty(difficulty: DifficultyLevel) -> list[MigrationScenario]:
     """Get all scenarios of a specific difficulty"""
     return [s for s in ALL_SCENARIOS.values() if s.difficulty == difficulty]
-
-def get_random_scenario(difficulty: DifficultyLevel | None = None) -> MigrationScenario:
-    """Get random scenario, optionally filtered by difficulty"""
-    import random
-    candidates = list(ALL_SCENARIOS.values())
-    if difficulty:
-        candidates = [s for s in candidates if s.difficulty == difficulty]
-    return random.choice(candidates)
