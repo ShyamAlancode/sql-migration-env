@@ -160,8 +160,8 @@ class ResetResponse(BaseModel):
               "Optionally provide X-Session-ID header for isolated concurrent sessions."
           ))
 async def reset_environment(
-    request: ResetRequest,
     response: Response,
+    request: ResetRequest = ResetRequest(),
     x_session_id: Optional[str] = Header(default=None)
 ):
     """
