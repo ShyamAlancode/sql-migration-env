@@ -22,6 +22,10 @@ import json
 import time
 import requests
 from typing import Optional, Dict, Any, List
+from dotenv import load_dotenv
+
+# Load .env file if it exists
+load_dotenv()
 
 from openai import OpenAI
 
@@ -198,6 +202,11 @@ def run_episode(agent: SQLMigrationAgent, task_id: str) -> Dict[str, Any]:
             timeout=30,
         )
         reset_resp.raise_for_status()
+        
+        # Capture Session ID for subsequent steps (spec compliance)
+        session_id = reset_resp.headers.get("X-Session-ID")
+        headers = {"X-Session-ID": session_id} if session_id else {}
+
         reset_data = reset_resp.json()
         # SPEC: /reset returns {observation: {...}, done: false, reward: null}
         obs = reset_data.get("observation", reset_data)  # graceful fallback for old flat format
@@ -216,6 +225,7 @@ def run_episode(agent: SQLMigrationAgent, task_id: str) -> Dict[str, Any]:
                         "explanation": action["explanation"],
                         "confidence":  action["confidence"],
                     },
+                    headers=headers,
                     timeout=30,
                 )
                 step_resp.raise_for_status()

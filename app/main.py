@@ -222,11 +222,10 @@ async def step_environment(
     
     try:
         obs, reward, done, info = env.step(action)
-        # SPEC COMPLIANCE: Normalize reward from 0-100 to 0.0-1.0
-        reward_normalized = round(reward / 100.0, 4)
+        # Environment already normalizes to 0.0-1.0; no need for redundant division
         return StepResponse(
             observation=obs,
-            reward=reward_normalized,
+            reward=reward,
             done=done,
             info=info
         )

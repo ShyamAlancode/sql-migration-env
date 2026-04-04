@@ -5,6 +5,7 @@ OpenEnv Hackathon 2026
 
 import os
 import random
+import time
 import requests
 import matplotlib.pyplot as plt
 from inference import SQLMigrationAgent, run_episode
@@ -29,6 +30,9 @@ def run_training_demo(episodes=20):
         except Exception as e:
             print(f"Error on episode {i+1}: {e}")
             rewards.append(0.0)
+        
+        # Buffer for Groq Rate Limits (TPM 6000)
+        time.sleep(3)
             
     # Plotting
     plt.figure(figsize=(10, 5))

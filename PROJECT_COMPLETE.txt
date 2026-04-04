@@ -2140,11 +2140,10 @@ async def step_environment(
     
     try:
         obs, reward, done, info = env.step(action)
-        # SPEC COMPLIANCE: Normalize reward from 0-100 to 0.0-1.0
-        reward_normalized = round(reward / 100.0, 4)
+        # Environment already normalizes to 0.0-1.0; no need for redundant division
         return StepResponse(
             observation=obs,
-            reward=reward_normalized,
+            reward=reward,
             done=done,
             info=info
         )
@@ -2922,6 +2921,10 @@ import json
 import time
 import requests
 from typing import Optional, Dict, Any, List
+from dotenv import load_dotenv
+
+# Load .env file if it exists
+load_dotenv()
 
 from openai import OpenAI
 
@@ -3098,6 +3101,11 @@ def run_episode(agent: SQLMigrationAgent, task_id: str) -> Dict[str, Any]:
             timeout=30,
         )
         reset_resp.raise_for_status()
+        
+        # Capture Session ID for subsequent steps (spec compliance)
+        session_id = reset_resp.headers.get("X-Session-ID")
+        headers = {"X-Session-ID": session_id} if session_id else {}
+
         reset_data = reset_resp.json()
         # SPEC: /reset returns {observation: {...}, done: false, reward: null}
         obs = reset_data.get("observation", reset_data)  # graceful fallback for old flat format
@@ -3116,6 +3124,7 @@ def run_episode(agent: SQLMigrationAgent, task_id: str) -> Dict[str, Any]:
                         "explanation": action["explanation"],
                         "confidence":  action["confidence"],
                     },
+                    headers=headers,
                     timeout=30,
                 )
                 step_resp.raise_for_status()
@@ -3295,6 +3304,7 @@ OpenEnv Hackathon 2026
 
 import os
 import random
+import time
 import requests
 import matplotlib.pyplot as plt
 from inference import SQLMigrationAgent, run_episode
@@ -3319,6 +3329,9 @@ def run_training_demo(episodes=20):
         except Exception as e:
             print(f"Error on episode {i+1}: {e}")
             rewards.append(0.0)
+        
+        # Buffer for Groq Rate Limits (TPM 6000)
+        time.sleep(3)
             
     # Plotting
     plt.figure(figsize=(10, 5))
