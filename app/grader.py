@@ -56,12 +56,6 @@ class MigrationGrader:
             post_hash = db.compute_hash()
             post_data = self._capture_table_data(db)
             
-            # Dispatch to specialized grader for the new hard scenario
-            if self.scenario.id == "hard_001_execution_order_corruption":
-                return self._grade_hard_execution_order(
-                    db, pre_hash, exec_success, exec_error, action.fixed_sql
-                )
-
             # Score components
             syntax_score = self._grade_syntax(exec_success, exec_error)
             data_score, corruption_flag = self._grade_data_integrity(
@@ -135,17 +129,12 @@ class MigrationGrader:
         
         # If the environment HAS a known final hash in scenario metadata (TBD in future spec)
         # For now, we reward the absence of unexplained side-effects
-        if all_pass:
-            if hash_matched:
-                # Perfect score: passed validation with ZERO side-effects
-                data_score = 45.0
-            else:
-                # 40.0 points: passed validation but changed database in undocumented ways
-                # This catches agents that 'spray and pray' updates
-                data_score = 40.0
+        if hash_matched:
+            # We don't overwrite data_score; we just apply the penalty/reward
+            data_score = min(45.0, data_score + 5.0)  # up to +5 points for clean state
         else:
-            # 0.0 points: primary validation failed
-            data_score = 0.0
+            # -5 points penalty for unexplained side-effects
+            data_score = max(0.0, data_score - 5.0)
             
         corruption_detected = not all_pass  # Primary signal: validation failure
         
@@ -283,123 +272,6 @@ class MigrationGrader:
             parts.append(f"Agent explanation: {explanation[:200]}")
         
         return " ".join(parts)
-
-    def _grade_hard_execution_order(
-        self,
-        db,
-        pre_hash: str,
-        exec_success: bool,
-        exec_error: str,
-        fixed_sql: str = ""
-    ) -> GradingResult:
-        """
-        Grades the execution-order corruption scenario.
-        Only way to get full score: reorder UPDATE to run after
-        discount_pct is populated, not immediately after ALTER TABLE.
-        """
-
-        # Execution failure = near zero
-        if not exec_success:
-            return GradingResult(
-                total_score=5.0,
-                syntax_correct=False,
-                syntax_score=0.0,
-                data_integrity_score=0.0,
-                schema_correct_score=0.0,
-                efficiency_score=5.0,
-                silent_corruption_detected=False,
-                detailed_feedback=f"Execution error: {exec_error}"
-            )
-
-        post_hash = db.compute_hash()
-        syntax_score = 10.0  # executed cleanly (max 10, consistent with all other paths)
-
-        # Check premium customer discounts
-        try:
-            # Use db.connection.execute as prescribed in the task
-            rows = db.connection.execute(
-                "SELECT id, customer_tier, discount_pct, final_amount, total_amount "
-                "FROM orders ORDER BY id"
-            ).fetchall()
-            rows = [dict(r) for r in rows]
-        except Exception as e:
-            return GradingResult(
-                total_score=10.0,
-                syntax_correct=True,
-                syntax_score=10.0,
-                data_integrity_score=0.0,
-                schema_correct_score=0.0,
-                efficiency_score=0.0,
-                detailed_feedback=f"Validation query failed: {e}"
-            )
-
-        # Score premium discount correctness
-        premium_rows = [r for r in rows if r["customer_tier"] == "premium"]
-        standard_rows = [r for r in rows if r["customer_tier"] == "standard"]
-
-        premium_correct = 0
-        for row in premium_rows:
-            actual_discount = row.get("discount_pct", 0)
-            # Check discount_pct > 0 (not the silent corruption zero)
-            if actual_discount > 0.01:
-                premium_correct += 1
-
-        standard_correct = all(
-            r.get("discount_pct", -1) < 0.01
-            for r in standard_rows
-        )
-
-        premium_ratio = premium_correct / len(premium_rows) if premium_rows else 0.0
-
-        # Data integrity score: 0-40
-        if premium_ratio >= 1.0 and standard_correct:
-            data_score = 40.0
-        elif premium_ratio >= 0.5:
-            data_score = 20.0
-        elif premium_ratio > 0:
-            data_score = 10.0
-        else:
-            # Silent corruption still present: all zeros
-            data_score = 0.0
-
-        # final_amount correctness: 0-30
-        schema_score = 0.0
-        try:
-            correct_finals = 0
-            for row in rows:
-                # Simpler check: final_amount > 0 and less than total_amount
-                # for premium, final_amount < total_amount
-                if row["customer_tier"] == "premium":
-                    if row.get("final_amount", 0) < row.get("total_amount", 999):
-                        correct_finals += 1
-                else:
-                    if abs(row.get("final_amount", 0) - row.get("total_amount", 0)) < 0.01:
-                        correct_finals += 1
-
-            schema_score = 30.0 * (correct_finals / len(rows))
-        except Exception:
-            schema_score = 0.0
-
-        efficiency_score = 10.0 if not re.search(
-            r'\bDROP\b|\bTRUNCATE\b', fixed_sql, re.I
-        ) else 0.0
-
-        total = syntax_score + data_score + schema_score + efficiency_score
-        corruption_present = (data_score == 0.0)
-
-        return GradingResult(
-            total_score=round(min(100.0, total), 2),
-            syntax_correct=True,
-            syntax_score=syntax_score,
-            data_integrity_score=round(data_score, 2),
-            schema_correct_score=round(schema_score, 2),
-            efficiency_score=efficiency_score,
-            silent_corruption_detected=corruption_present,
-            detailed_feedback=(
-                f"Premium discounts correct: {premium_correct}/{len(premium_rows)}. "
-                f"Corruption present: {corruption_present}"
-            )
-        )
 
 
 def grade_submission(scenario_id: str, action: Action) -> GradingResult:

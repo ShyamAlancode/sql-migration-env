@@ -6,14 +6,17 @@ OpenEnv Hackathon 2026
 import os
 import random
 import time
-import requests
+import asyncio
 import matplotlib.pyplot as plt
 from inference import SQLMigrationAgent, run_episode
 
 # Ensure we run against the local environment or the live Space
 ENV_URL = os.environ.get("ENV_URL", "http://localhost:7860")
 
-def run_training_demo(episodes=20):
+def run_training_demo_sync(episodes=20):
+    asyncio.run(run_training_demo(episodes))
+
+async def run_training_demo(episodes=20):
     print(f"Running {episodes} evaluation episodes to generate reward curve...")
     rewards = []
     
@@ -24,7 +27,7 @@ def run_training_demo(episodes=20):
         task = random.choice(tasks)
         print(f"Episode {i+1}/{episodes} - Task: {task}")
         try:
-            summary = run_episode(agent, task)
+            summary = await run_episode(agent, task)
             scores = summary.get("score", 0.0)
             rewards.append(scores)
         except Exception as e:
@@ -58,4 +61,4 @@ def run_training_demo(episodes=20):
     print("\nFinal Baseline Average:", sum(rewards)/len(rewards))
 
 if __name__ == "__main__":
-    run_training_demo(20)
+    run_training_demo_sync(20)

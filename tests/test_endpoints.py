@@ -18,18 +18,20 @@ def test_reset_endpoint():
     assert data["observation"]["difficulty"] == "easy"
 
 def test_step_endpoint():
-    # Reset first
-    client.post("/reset", json={"task_id": "easy"})
-    # Step
+    # First reset to initialize the environment
+    reset_resp = client.post("/reset", json={"task_id": "easy"})
+    session_id = reset_resp.headers.get("X-Session-ID")
+    
+    # Use the returned session_id
     response = client.post("/step", json={
         "fixed_sql": "SELECT 1;",
         "explanation": "test fix",
         "confidence": 0.9
-    })
+    }, headers={"X-Session-ID": session_id})
     assert response.status_code == 200
     data = response.json()
-    assert "reward" in data
     assert "observation" in data
+    assert "reward" in data
     assert "done" in data
 
 def test_session_isolation():

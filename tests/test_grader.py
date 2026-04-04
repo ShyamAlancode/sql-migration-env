@@ -32,7 +32,7 @@ def test_hard_execution_order_grader():
         ALTER TABLE orders ADD COLUMN discount_pct REAL DEFAULT 0.0;
         ALTER TABLE orders ADD COLUMN final_amount REAL DEFAULT 0.0;
         UPDATE orders SET discount_pct = total_amount * 0.10 WHERE customer_tier = 'premium';
-        UPDATE orders SET final_amount = total_amount * (1.0 - discount_pct);
+        UPDATE orders SET final_amount = total_amount - discount_pct;
         COMMIT;
     """
     action = Action(fixed_sql=correct_fix)

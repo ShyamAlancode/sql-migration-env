@@ -17,15 +17,12 @@ ENVIRONMENT VARIABLES:
 """
 
 import os
+import re
 import sys
 import json
 import time
-import requests
+import asyncio
 from typing import Optional, Dict, Any, List
-from dotenv import load_dotenv
-
-# Load .env file if it exists
-load_dotenv()
 
 from openai import OpenAI
 
@@ -33,11 +30,11 @@ from openai import OpenAI
 # ============================================================================
 # ENVIRONMENT VARIABLES (per OpenEnv mandatory spec)
 # ============================================================================
-API_BASE_URL   = os.environ.get("API_BASE_URL",    "https://api.groq.com/openai/v1")
-MODEL_NAME     = os.environ.get("MODEL_NAME",      "llama-3.1-8b-instant")
-HF_TOKEN       = os.environ.get("HF_TOKEN",        "")
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY",  HF_TOKEN)
-ENV_URL        = os.environ.get("ENV_URL",         "http://localhost:7860")
+API_BASE_URL   = os.environ.get("API_BASE_URL",    "https://api.groq.com/openai/v1").strip('"\'')
+MODEL_NAME     = os.environ.get("MODEL_NAME",      "llama-3.1-8b-instant").strip('"\'')
+HF_TOKEN       = os.environ.get("HF_TOKEN",        "").strip('"\'')
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY",  HF_TOKEN).strip('"\'')
+ENV_URL        = os.environ.get("ENV_URL",         "http://localhost:7860").strip('"\'')
 
 BENCHMARK      = "sql-migration-env"
 MAX_STEPS      = 3   # Keep under 20min on 2vCPU / 8GB RAM
@@ -57,10 +54,11 @@ def log_step(step: int, action: str, reward: float, done: bool, error: Optional[
     """Emit [STEP] line — MANDATORY FORMAT."""
     error_val = error if error else "null"
     done_val  = str(done).lower()
-    # Sanitize action — remove newlines, truncate to 100 chars, no repr quotes
-    action_safe = action.replace("\n", " ").replace("\r", "").replace("\t", " ").strip()[:100]
+    # Sanitize action — replace newlines for single-line compliance
+    action_safe = action.replace("\n", "\\n").replace("\r", "").replace("\t", " ")
+    error_safe = error_val.replace("\n", "\\n").replace("\r", "").replace("\t", " ")
     print(
-        f"[STEP] step={step} action={action_safe} reward={reward:.2f} done={done_val} error={error_val}",
+        f"[STEP] step={step} action={action_safe} reward={reward:.2f} done={done_val} error={error_safe}",
         flush=True,
     )
 
@@ -162,13 +160,18 @@ class SQLMigrationAgent:
                 ],
                 temperature=0.1,
                 max_tokens=800,
-                response_format={"type": "json_object"},
             )
             content = resp.choices[0].message.content or "{}"
+            
+            # Use regex to robustly extract JSON block in case model outputs markdown
+            match = re.search(r'\{.*\}', content, re.DOTALL)
+            if match:
+                content = match.group(0)
+            
             data = json.loads(content)
             return {
                 "fixed_sql":   data.get("fixed_sql", "SELECT 1;").strip(),
-                "explanation": data.get("explanation", "").strip()[:500],
+                "explanation": data.get("explanation", "").strip(),
                 "confidence":  float(data.get("confidence", 0.5)),
             }
         except Exception as exc:
@@ -180,7 +183,10 @@ class SQLMigrationAgent:
 # EPISODE RUNNER
 # ============================================================================
 
-def run_episode(agent: SQLMigrationAgent, task_id: str) -> Dict[str, Any]:
+def run_episode_async(agent: SQLMigrationAgent, task_id: str) -> None:
+    pass
+
+async def run_episode(agent: SQLMigrationAgent, task_id: str) -> Dict[str, Any]:
     """
     Run one episode for a given task_id.
     Emits [START], [STEP]×n, [END] to stdout.
@@ -193,23 +199,39 @@ def run_episode(agent: SQLMigrationAgent, task_id: str) -> Dict[str, Any]:
     score = 0.0
     success = False
     error_msg = None
+    
+    from openenv.core.env_client import EnvClient
+
+    class DummyStepResult:
+        def __init__(self, obs, reward, done, info):
+            self.obs = obs
+            self.reward = reward
+            self.done = done
+            self.info = info
+
+    class SQLMigrationClient(EnvClient):
+        def _parse_result(self, raw_data: Dict[str, Any]) -> DummyStepResult:
+            return DummyStepResult(
+                obs=raw_data.get("obs", raw_data.get("observation")),
+                reward=raw_data.get("reward", 0.0),
+                done=raw_data.get("done", False),
+                info=raw_data.get("info", {})
+            )
+            
+        def _parse_state(self, raw_data: Dict[str, Any]) -> Any:
+            return raw_data
+            
+        def _step_payload(self, action: Dict[str, Any]) -> Any:
+            return action
 
     try:
-        # RESET
-        reset_resp = requests.post(
-            f"{ENV_URL}/reset",
-            json={"task_id": task_id},
-            timeout=30,
-        )
-        reset_resp.raise_for_status()
+        # Create env client and connect
+        env = SQLMigrationClient(ENV_URL)
+        await env.connect()
         
-        # Capture Session ID for subsequent steps (spec compliance)
-        session_id = reset_resp.headers.get("X-Session-ID")
-        headers = {"X-Session-ID": session_id} if session_id else {}
-
-        reset_data = reset_resp.json()
-        # SPEC: /reset returns {observation: {...}, done: false, reward: null}
-        obs = reset_data.get("observation", reset_data)  # graceful fallback for old flat format
+        # RESET
+        reset_result = await env.reset(task_id=task_id)
+        obs = reset_result.obs
 
         for step in range(1, MAX_STEPS + 1):
             # Get action from LLM
@@ -218,37 +240,30 @@ def run_episode(agent: SQLMigrationAgent, task_id: str) -> Dict[str, Any]:
 
             # STEP
             try:
-                step_resp = requests.post(
-                    f"{ENV_URL}/step",
-                    json={
-                        "fixed_sql":   action["fixed_sql"],
-                        "explanation": action["explanation"],
-                        "confidence":  action["confidence"],
-                    },
-                    headers=headers,
-                    timeout=30,
-                )
-                step_resp.raise_for_status()
-                result = step_resp.json()
+                step_result = await env.step({
+                    "fixed_sql":   action["fixed_sql"],
+                    "explanation": action["explanation"],
+                    "confidence":  action["confidence"],
+                })
             except Exception as e:
-                error_msg = str(e)[:80]
+                error_msg = str(e)
                 log_step(step=step, action=action["fixed_sql"], reward=0.0, done=True, error=error_msg)
                 rewards.append(0.0)
                 steps_taken = step
                 break
 
             # Parse result
-            reward = float(result.get("reward", 0.0))
-            done   = bool(result.get("done", False))
-            obs    = result.get("observation", obs)
-            info   = result.get("info", {})
+            reward = float(step_result.reward)
+            done   = bool(step_result.done)
+            obs    = step_result.obs
+            info   = step_result.info
 
             # Capture any grader error
             grading = info.get("grading_result", {})
             if not grading.get("syntax_correct", True):
                 error_msg = grading.get("detailed_feedback", None)
                 if error_msg:
-                    error_msg = error_msg[:80]
+                    error_msg = str(error_msg)
 
             rewards.append(reward)
             steps_taken = step
@@ -258,12 +273,14 @@ def run_episode(agent: SQLMigrationAgent, task_id: str) -> Dict[str, Any]:
 
             if done:
                 break
+                
+        await env.close()
 
         score = max(rewards) if rewards else 0.0  # best step reward, already 0-1
         success = score >= SUCCESS_THRESHOLD
 
     except Exception as exc:
-        error_msg = str(exc)[:80]
+        error_msg = str(exc)
         print(f"[DEBUG] Episode error: {exc}", file=sys.stderr, flush=True)
         if not rewards:
             rewards = [0.0]
@@ -284,15 +301,15 @@ def run_episode(agent: SQLMigrationAgent, task_id: str) -> Dict[str, Any]:
 # MAIN — Run all 3 mandatory tasks
 # ============================================================================
 
-def main():
+async def main_async():
     agent = SQLMigrationAgent()
     results = {}
 
     for task_id in TASKS:
-        summary = run_episode(agent, task_id)
+        summary = await run_episode(agent, task_id)
         results[task_id] = summary.get("score", 0.0)
         # Brief pause between episodes
-        time.sleep(1)
+        await asyncio.sleep(1)
 
     # Final summary to stderr (NOT stdout — stdout is reserved for [START]/[STEP]/[END])
     print(
@@ -301,6 +318,9 @@ def main():
         flush=True,
     )
 
+
+def main():
+    asyncio.run(main_async())
 
 if __name__ == "__main__":
     main()

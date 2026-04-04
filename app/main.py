@@ -5,7 +5,7 @@ Session-based concurrency: each X-Session-ID gets its own SQLMigrationEnv instan
 Falls back to global singleton if no header provided (backward compat).
 """
 
-from fastapi import FastAPI, HTTPException, Header, Response
+from fastapi import FastAPI, HTTPException, Header, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -314,6 +314,90 @@ async def spec_compliance():
         "compliance": "RFC 001, 002, 003",
         "concurrency": "Session-isolated via X-Session-ID header"
     }
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """
+    WebSocket endpoint for OpenEnv client persistent connections.
+    """
+    await websocket.accept()
+    session_id = str(uuid.uuid4())
+    env = get_session_env(session_id)
+    
+    try:
+        while True:
+            data = await websocket.receive_json()
+            msg_type = data.get("type")
+            msg_data = data.get("data", {})
+            
+            try:
+                if msg_type == "reset":
+                    task_id = msg_data.get("task_id")
+                    scenario_id = msg_data.get("scenario_id")
+                    difficulty_str = msg_data.get("difficulty")
+                    
+                    diff_enum = None
+                    effective_scenario_id = scenario_id
+                    if task_id:
+                        try:
+                            diff_enum = DifficultyLevel(task_id.lower())
+                        except ValueError:
+                            effective_scenario_id = task_id
+                    elif difficulty_str:
+                        diff_enum = DifficultyLevel(difficulty_str.lower())
+                        
+                    obs = env.reset(scenario_id=effective_scenario_id, difficulty=diff_enum)
+                    await websocket.send_json({
+                        "type": "reset_response",
+                        "data": {
+                            "obs": obs.model_dump(),
+                            "done": False,
+                            "reward": 0.0,
+                            "info": {}
+                        }
+                    })
+                    
+                elif msg_type == "step":
+                    action = Action(
+                        fixed_sql=msg_data.get("fixed_sql", ""),
+                        explanation=msg_data.get("explanation", ""),
+                        confidence=msg_data.get("confidence", 0.5)
+                    )
+                    obs, reward, done, info = env.step(action)
+                    await websocket.send_json({
+                        "type": "step_response",
+                        "data": {
+                            "obs": obs.model_dump(),
+                            "reward": reward,
+                            "done": done,
+                            "info": info
+                        }
+                    })
+                    
+                elif msg_type == "state":
+                    state_data = env.state()
+                    await websocket.send_json({
+                        "type": "state_response",
+                        "data": state_data
+                    })
+                    
+                else:
+                    await websocket.send_json({
+                        "type": "error",
+                        "data": {"message": f"Unknown message type: {msg_type}", "code": 400}
+                    })
+                    
+            except Exception as e:
+                await websocket.send_json({
+                    "type": "error",
+                    "data": {"message": str(e), "code": 500}
+                })
+                
+    except WebSocketDisconnect:
+        # Cleanup if needed
+        if session_id in _session_registry:
+            del _session_registry[session_id]
 
 
 if __name__ == "__main__":

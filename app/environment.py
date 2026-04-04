@@ -77,6 +77,9 @@ class SQLMigrationEnv:
         if not self._current_scenario_id:
             raise RuntimeError("Environment not reset. Call reset() first.")
         
+        # Strip markdown backticks from LLM output
+        action.fixed_sql = action.fixed_sql.replace("```sql", "").replace("```", "").strip()
+        
         # Grade action
         scenario = get_scenario(self._current_scenario_id)
         grader = MigrationGrader(scenario)

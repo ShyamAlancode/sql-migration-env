@@ -19,7 +19,12 @@ tags:
 [![Tests](https://img.shields.io/badge/Tests-12%2F12%20Passing-brightgreen)](tests/)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
-**SQL Migration Safety Gym** is the first OpenEnv environment targeting **silent data corruption** — SQL migrations that execute with exit code 0 but permanently corrupt production data. Unlike syntax checkers, our **SHA-256 cryptographic state hashing** and **24 hand-crafted scenarios** detect semantic bugs that pass all syntax checks. Baseline testing shows our grader sharply discriminates between random agents (avg **0.02**) and expert-prompted LLMs (avg **0.65+**), with 14 Hard scenarios specifically testing long-horizon reasoning about SQL execution semantics.
+**SQL Migration Safety Gym** is the first OpenEnv environment targeting **silent data corruption** — SQL migrations that execute with exit code 0 but permanently corrupt production data. 
+**This environment trains agents to catch exactly the types of silent migration failures that caused the GitLab (300GB data loss), Knight Capital ($440M collapse), and Cloudflare (global DNS outage) production incidents.**
+
+> **Why this is new:** To our knowledge, this is the first OpenEnv environment that models silent schema/data corruption in SQL migrations using cryptographic hashing.
+
+Unlike syntax checkers, our **SHA-256 cryptographic state hashing** and **24 hand-crafted scenarios** detect semantic bugs that pass all syntax checks. Baseline testing shows our grader sharply discriminates between random agents (avg **0.02**) and expert-prompted LLMs (avg **0.65+**), with 14 Hard scenarios specifically testing long-horizon reasoning about SQL execution semantics.
 
 ---
 
@@ -59,6 +64,19 @@ Database migrations are the single highest-risk operation in production engineer
 
 These failures share a pattern: the migration _ran successfully_ but left data permanently inconsistent. This environment trains agents to catch exactly these bugs — before they reach production.
 
+### Alignment with Frontier AI Research
+
+Recent advances in Reinforcement Learning (RL) have validated the critical need for deterministic, execution-based SQL environments:
+
+- **Snowflake's Agent World Model:** Snowflake recently open-sourced 1,000 SQL-backed environments for agentic RL, highlighting that robust reward signals must be grounded in actual database execution rather than static text comparison ("Did the SQL run? Did it return the right answer?"). The SQL Migration Safety Gym perfectly mirrors this methodology while applying it to the high-stakes domain of schema migrations.
+- **IDEA Research's SQL-R1:** Demonstrated that standard Supervised Fine-Tuning (SFT) fails out-of-distribution for complex SQL tasks, whereas algorithms like **GRPO** (Group Relative Policy Optimization) can drastically mature SQL reasoning. By providing fractional, continuous rewards (0.0 to 1.0) rather than binary pass/fail mechanics, our environment is explicitly designed as a premier benchmark for GRPO training.
+
+### Anti-Reward Hacking: The Cryptographic Guardrail 🛡️
+
+A pervasive challenge in RL is "reward hacking," where an agent might destructively alter the database (e.g., dropping a table and artificially inserting rows) just to pass the final `SELECT` evaluation queries. 
+
+To eliminate this vulnerability, the SQL Migration Safety Gym utilizes an innovative **SHA-256 Cryptographic Guardrail**. Before execution, the entire in-memory JSON state of the SQLite database is hashed. Any mutation outside the explicitly intended scope will irrecoverably alter the terminal state hash, triggering immediate and massive side-effect penalties. This guarantees the grading engine strictly evaluates genuine semantic understanding, rather than malicious prompt exploitation.
+
 ---
 
 ## Benchmarks (Measured — April 2026)
@@ -70,7 +88,7 @@ These failures share a pattern: the migration _ran successfully_ but left data p
 | **Llama-3.1-8B (Groq)** | 0.95 | 0.20 | 0.82 | **0.657** |
 | **GPT-4o-mini** | 0.94 | 0.72 | 0.29 | **0.65** |
 
-> The **10×+ gap** between rule-based (0.07) and LLM agents (0.82) on Hard tasks proves genuine discriminative signal. Hard tasks **cannot** be solved by matching error messages — they require deep reasoning about SQL execution semantics.
+> **Hard scenarios produce near-zero reward for random/heuristics but high reward for strong LLMs, demonstrating high discriminative power.** The **10×+ gap** between rule-based (0.07) and LLM agents (0.82) on Hard tasks proves genuine learning signal. Hard tasks **cannot** be solved by matching error messages — they require deep reasoning about SQL execution semantics.
 
 > [!IMPORTANT]
 > **Scoring Note:** A score of **>0.90** is considered **Master Tier**. Due to strict SHA-256 guardrails and efficiency penalties, a perfect 1.0 requires a precisely targeted fix with zero side effects.

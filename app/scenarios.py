@@ -314,15 +314,25 @@ HARD_SCENARIOS = [
             COMMIT;
         """,
         validation_queries=[
+            "SELECT COUNT(*) as count FROM orders WHERE customer_tier = 'premium' AND discount_pct > 0.01",
+            "SELECT COUNT(*) as count FROM orders WHERE customer_tier = 'standard' AND discount_pct < 0.01",
+            "SELECT COUNT(*) as count FROM orders WHERE customer_tier = 'premium' AND final_amount < total_amount",
+            "SELECT COUNT(*) as count FROM orders WHERE customer_tier = 'standard' AND abs(final_amount - total_amount) < 0.01",
             "SELECT id, customer_tier, discount_pct, final_amount FROM orders ORDER BY id"
         ],
-        expected_results=[[
-            {"id": 1, "customer_tier": "premium",  "discount_pct": 10.0,  "final_amount": 90.0},
-            {"id": 2, "customer_tier": "premium",  "discount_pct": 20.0,  "final_amount": 180.0},
-            {"id": 3, "customer_tier": "standard", "discount_pct": 0.0,   "final_amount": 50.0},
-            {"id": 4, "customer_tier": "premium",  "discount_pct": 15.0,  "final_amount": 135.0},
-            {"id": 5, "customer_tier": "standard", "discount_pct": 0.0,   "final_amount": 75.0},
-        ]],
+        expected_results=[
+            [{"count": 3}],
+            [{"count": 2}],
+            [{"count": 3}],
+            [{"count": 2}],
+            [
+                {"id": 1, "customer_tier": "premium",  "discount_pct": 10.0,  "final_amount": 90.0},
+                {"id": 2, "customer_tier": "premium",  "discount_pct": 20.0,  "final_amount": 180.0},
+                {"id": 3, "customer_tier": "standard", "discount_pct": 0.0,   "final_amount": 50.0},
+                {"id": 4, "customer_tier": "premium",  "discount_pct": 15.0,  "final_amount": 135.0},
+                {"id": 5, "customer_tier": "standard", "discount_pct": 0.0,   "final_amount": 75.0},
+            ]
+        ],
         hint=None,
         is_silent_corruption=True
     ),
