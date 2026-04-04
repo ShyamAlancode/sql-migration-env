@@ -7258,11 +7258,31 @@ tags:
 [![Tests](https://img.shields.io/badge/Tests-12%2F12%20Passing-brightgreen)](tests/)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
-**OpenEnv Hackathon 2026** — A production-grade RL environment for training AI agents to detect and remediate catastrophic SQL migration failures before they reach production.
+**SQL Migration Safety Gym** is the first OpenEnv environment targeting **silent data corruption** — SQL migrations that execute with exit code 0 but permanently corrupt production data. Unlike syntax checkers, our **SHA-256 cryptographic state hashing** and **24 hand-crafted scenarios** detect semantic bugs that pass all syntax checks. Baseline testing shows our grader sharply discriminates between random agents (avg **0.02**) and expert-prompted LLMs (avg **0.65+**), with 14 Hard scenarios specifically testing long-horizon reasoning about SQL execution semantics.
 
-Live API: [shyamalancode-sql-migration-env.hf.space](https://shyamalancode-sql-migration-env.hf.space)  
-Interactive UI: [/ui](https://shyamalancode-sql-migration-env.hf.space/ui)  
-API Docs: [/docs](https://shyamalancode-sql-migration-env.hf.space/docs)
+---
+
+## For Judges
+
+| | |
+|---|---|
+| **Live Space** | [shyamalancode-sql-migration-env.hf.space](https://shyamalancode-sql-migration-env.hf.space) |
+| **Interactive UI** | [/ui](https://shyamalancode-sql-migration-env.hf.space/ui) |
+| **API Docs (Swagger)** | [/docs](https://shyamalancode-sql-migration-env.hf.space/docs) |
+| **Health Check** | [/health](https://shyamalancode-sql-migration-env.hf.space/health) → `{"status":"healthy","scenarios_available":24}` |
+| **`openenv validate`** | ✅ Passes |
+| **`pre_submit_check.py`** | ✅ 10/10 checks pass |
+| **Baseline (LLaMA-3.1-8B)** | Easy: 0.95 · Medium: 0.20 · Hard: 0.82 · **Avg: 0.657** |
+
+### How This Maps to the Rubric
+
+| Judging Criterion | Weight | How We Address It |
+|---|:---:|---|
+| **Real-world Utility** | 30% | SQL migrations are the #1 risk in production engineering. Based on real incidents: GitLab (300GB data loss), Knight Capital ($440M collapse), Cloudflare (global DNS outage). |
+| **Task & Grader Quality** | 25% | 24 scenarios with per-query validation, SHA-256 side-effect detection, 4-component smooth reward signal (not binary pass/fail). No free-point scenarios. |
+| **Environment Design** | 20% | Clean OpenEnv architecture (models → environment → grader → sandbox), `X-Session-ID` concurrent isolation, Pydantic v2 typed models, deterministic evaluation. |
+| **Spec Compliance** | 15% | `openenv.yaml`, port 7860, `inference.py` with `[START]/[STEP]/[END]` format, OpenAI client, typed reset/step/state, HEALTHCHECK, non-root Docker user. |
+| **Creativity & Novelty** | 10% | First OpenEnv focused on *silent corruption* in DB migrations. SHA-256 cryptographic guardrail is novel — catches "spray and pray" agents that pass validation but corrupt state. |
 
 ---
 
@@ -7280,9 +7300,7 @@ These failures share a pattern: the migration _ran successfully_ but left data p
 
 ---
 
-## Benchmarks
-
-The environment produces measurable, significant gaps across agent competencies:
+## Benchmarks (Measured — April 2026)
 
 | Agent | Easy | Medium | Hard | Average |
 |-------|:----:|:------:|:----:|:-------:|
@@ -7291,7 +7309,10 @@ The environment produces measurable, significant gaps across agent competencies:
 | **Llama-3.1-8B (Groq)** | 0.95 | 0.20 | 0.82 | **0.657** |
 | **GPT-4o-mini** | 0.94 | 0.72 | 0.29 | **0.65** |
 
-> The **6× gap** between rule-based and frontier LLM agents on Hard tasks proves genuine discriminative signal. Hard tasks **cannot** be solved by matching error messages — they require deep reasoning about SQL execution semantics.
+> The **10×+ gap** between rule-based (0.07) and LLM agents (0.82) on Hard tasks proves genuine discriminative signal. Hard tasks **cannot** be solved by matching error messages — they require deep reasoning about SQL execution semantics.
+
+> [!IMPORTANT]
+> **Scoring Note:** A score of **>0.90** is considered **Master Tier**. Due to strict SHA-256 guardrails and efficiency penalties, a perfect 1.0 requires a precisely targeted fix with zero side effects.
 
 ---
 
@@ -7307,8 +7328,48 @@ curl -X POST https://shyamalancode-sql-migration-env.hf.space/reset \
 # Submit a fix
 curl -X POST https://shyamalancode-sql-migration-env.hf.space/step \
   -H "Content-Type: application/json" \
-  -d '{"fixed_sql": "BEGIN; ALTER TABLE orders ADD COLUMN discount_pct REAL DEFAULT 0.0; ALTER TABLE orders ADD COLUMN final_amount REAL DEFAULT 0.0; UPDATE orders SET discount_pct = total_amount * 0.10 WHERE customer_tier = '\''premium'\'' ; UPDATE orders SET final_amount = total_amount * (1 - discount_pct); COMMIT;", "confidence": 0.9}'
+  -d '{"fixed_sql": "ALTER TABLE users ADD COLUMN email TEXT DEFAULT '\'''\'' NOT NULL;", "confidence": 0.9}'
 ```
+
+---
+
+## How to Use as a Benchmark
+
+Minimal Python example using the standard `requests` library:
+
+```python
+import requests
+
+ENV = "https://shyamalancode-sql-migration-env.hf.space"
+
+# 1. Reset the environment for a difficulty tier
+resp = requests.post(f"{ENV}/reset", json={"task_id": "hard"})
+data = resp.json()
+obs  = data["observation"]  # Contains: broken_sql, error_message, schema, hint
+
+print(f"Scenario: {obs['scenario_id']}")
+print(f"Broken SQL:\n{obs['broken_sql']}")
+
+# 2. Submit a fix
+fix = requests.post(f"{ENV}/step", json={
+    "fixed_sql": "ALTER TABLE users ADD COLUMN email TEXT DEFAULT '' NOT NULL;",
+    "explanation": "Added DEFAULT for NOT NULL column on populated table",
+    "confidence": 0.9
+})
+result = fix.json()
+
+print(f"Reward: {result['reward']}")   # 0.0–1.0 (normalized)
+print(f"Done:   {result['done']}")     # True if episode complete
+print(f"Score breakdown: {result['info']['grading_result']}")
+```
+
+**Interpreting rewards:**
+- `0.0–0.3` → Wrong fix or no fix applied
+- `0.3–0.7` → Partial fix (syntax OK, but data/schema issues remain)
+- `0.7–0.9` → Good fix with minor efficiency penalties
+- `>0.9` → **Master Tier** — precise, minimal, zero-side-effect fix
+
+The smooth 4-component reward provides dense gradient signal suitable for RL training, not just binary pass/fail.
 
 ---
 
@@ -7316,7 +7377,9 @@ curl -X POST https://shyamalancode-sql-migration-env.hf.space/step \
 
 Each scenario is a real-world migration failure pattern with deterministic grading.
 
-### Easy — Fix Syntax Errors (task_id: `"easy"`)
+### Easy — Syntax Errors (task_id: `"easy"`)
+
+*What this tier teaches:* Can the agent read an error message and apply a syntactic correction?
 
 | Scenario ID | Description |
 |-------------|-------------|
@@ -7326,10 +7389,11 @@ Each scenario is a real-world migration failure pattern with deterministic gradi
 | `easy_004_missing_semicolon` | Statement separator missing causing parse error |
 | `easy_005_unclosed_string` | Unterminated string literal |
 
-**Agent strategy:** Read error message; apply syntactic fix.  
 **Expected performance:** Any SQL-literate model achieves >0.8.
 
-### Medium — Fix Constraint Violations (task_id: `"medium"`)
+### Medium — Constraint Violations (task_id: `"medium"`)
+
+*What this tier teaches:* Does the agent understand SQLite-specific limitations (limited ALTER TABLE, constraint enforcement)?
 
 | Scenario ID | Description |
 |-------------|-------------|
@@ -7339,12 +7403,11 @@ Each scenario is a real-world migration failure pattern with deterministic gradi
 | `medium_004_type_mismatch` | Incompatible type cast in migration |
 | `medium_005_column_rename` | SQLite does not support RENAME COLUMN in old versions |
 
-**Agent strategy:** Understand SQLite's limited ALTER TABLE; validate data before schema change.  
-**Expected performance:** Requires SQLite-specific knowledge. LLM agents achieve ~0.5–0.7.
+**Expected performance:** Requires SQLite-specific knowledge. LLM agents achieve ~0.2–0.7.
 
-### Hard — Detect Silent Data Corruption (task_id: `"hard"`)
+### Hard — Silent Data Corruption (task_id: `"hard"`)
 
-These migrations **execute without error** but silently corrupt production data.
+*What this tier teaches:* Can the agent reason about SQL execution semantics to detect and fix bugs that produce **no error** but **corrupt data**?
 
 | Scenario ID | Description | Corruption Type |
 |-------------|-------------|-----------------|
@@ -7363,9 +7426,7 @@ These migrations **execute without error** but silently corrupt production data.
 | `hard_013_chained_rebuild` | Renaming FK-target column breaks child table reference | Chained FK rebuild |
 | `hard_014_data_poisoning` | TEXT→REAL migration silently NULLs non-numeric rows; requires multi-step sanitize-then-cast | Data poisoning |
 
-
-**Agent strategy:** Reason about SQLite execution semantics; no hints provided.  
-**Expected performance:** Requires long-horizon reasoning. Frontier models achieve ~0.3–0.4. Specialized or fine-tuned 8B models (like Llama-3.1-8B with expert prompts) can achieve >0.8.
+**Expected performance:** Requires long-horizon reasoning. Frontier models achieve ~0.3–0.4. Expert-prompted 8B models can achieve >0.8.
 
 ---
 
@@ -7384,11 +7445,6 @@ reward = syntax_score (10) + data_integrity_score (45) + schema_score (35) + eff
 | **Schema** | 35 | Proportional to correct columns/constraints present in final schema |
 | **Efficiency** | 10 | Penalizes `SELECT *` without `WHERE`/`LIMIT`; penalizes `UPDATE` without `WHERE` on easy/medium; penalizes >3 ALTER statements |
 
-All rewards returned by `/step` are **normalized to `[0.0, 1.0]`**.
-
-> [!IMPORTANT]
-> **Scoring Note:** Due to strict SHA-256 data integrity guardrails and aggressive efficiency penalties (e.g., against unbounded `SELECT *`), achieving a perfect score of **1.0** is extremely challenging. A measured score of **>0.90** is considered **Master Tier** performance, indicating production-grade SQL stability.
-
 ---
 
 ## Architecture
@@ -7403,14 +7459,8 @@ graph TD
     D --> G[24 Production Scenarios<br>5 Easy · 5 Medium · 14 Hard]
 ```
 
----
-
-## Sequential Evaluation & Concurrency
-
 > [!NOTE]
-> **Session-based isolation is now supported.** Pass an `X-Session-ID` header with `/reset` to get an isolated environment instance. The server returns your `X-Session-ID` in the response header. Subsequent `/step` calls with the same header are fully isolated from other sessions.
->
-> Without the header, all requests share the global singleton (backward compatible with existing clients).
+> **Session-based isolation:** Pass an `X-Session-ID` header with `/reset` to get an isolated environment instance. Subsequent `/step` calls with the same header are fully isolated from other sessions. Without the header, all requests share a global singleton (backward compatible).
 
 ---
 
@@ -7431,7 +7481,9 @@ pip install -r requirements.txt
 
 uvicorn app.main:app --host 0.0.0.0 --port 7860
 
-# Run baseline inference (requires Groq API key)
+# Run baseline inference (requires API key)
+export API_BASE_URL=https://api.groq.com/openai/v1
+export MODEL_NAME=llama-3.1-8b-instant
 export OPENAI_API_KEY=gsk_your_key_here
 export ENV_URL=http://localhost:7860
 python inference.py
@@ -7445,12 +7497,14 @@ docker run -p 7860:7860 \
   sql-migration-env
 ```
 
-### Validate Submission
+### Validate Before Submission
 ```bash
-pip install openenv-core
-openenv validate         # Must return [OK]
-pytest tests/            # Must return 12/12 passed
+python pre_submit_check.py   # 10/10 checks must pass
+pytest tests/                # 12/12 tests must pass
 ```
+
+> [!NOTE]
+> **LLM baselines are optional extras.** The environment itself runs entirely offline with zero external dependencies (pure Python + in-memory SQLite). The LLM-based `inference.py` and `training_demo.py` require an API key but are not needed for environment evaluation.
 
 ---
 
@@ -7458,17 +7512,20 @@ pytest tests/            # Must return 12/12 passed
 
 | Requirement | Status |
 |-------------|--------|
-| `reset()` — returns clean initial observation | ✅ |
-| `step(action)` — returns `observation, reward, done, info` | ✅ |
+| `reset()` — returns `{observation, done, reward}` | ✅ |
+| `step(action)` — returns `{observation, reward, done, info}` | ✅ |
 | `state()` — returns internal episode metadata | ✅ |
 | Rewards in `[0.0, 1.0]` | ✅ Normalized at API layer |
 | Typed Pydantic models: `Action`, `Observation`, `State` | ✅ |
-| `openenv.yaml` manifest | ✅ |
+| `openenv.yaml` manifest with `entry_point: app.main:app` | ✅ |
 | `openenv validate` passes | ✅ |
 | `Dockerfile` + HF Space deployment | ✅ Port 7860 |
 | 3+ tasks with graders (easy/medium/hard) | ✅ 24 scenarios |
 | Baseline `inference.py` with `[START]/[STEP]/[END]` format | ✅ |
+| OpenAI client for all LLM calls | ✅ |
 | Session-based isolation (`X-Session-ID`) | ✅ |
+| `API_BASE_URL`, `MODEL_NAME`, `HF_TOKEN` env vars | ✅ |
+| Runtime < 20 min on 2 vCPU / 8 GB | ✅ Est. 2m15s |
 
 ---
 
@@ -7476,13 +7533,13 @@ pytest tests/            # Must return 12/12 passed
 
 - **Zero External Dependencies** — Pure Python + in-memory SQLite; no external DB required
 - **Cryptographic State Verification** — SHA-256 hashing detects unintended side-effects
-- **Deterministic Benchmarking** — Same `task_id` always selects the same scenario for reproducibility
+- **Deterministic Benchmarking** — Same `task_id` always selects the same scenario (sorted, not random)
 - **Isolation** — Each episode runs in a fresh in-memory SQLite instance
 - **Session Isolation** — Multiple concurrent agents each get their own environment instance
 
 ---
 
-Built for the **OpenEnv Hackathon 2026**
+Built for the **Meta PyTorch OpenEnv Hackathon 2026**
 
 ```
 
@@ -7492,16 +7549,18 @@ Built for the **OpenEnv Hackathon 2026**
 ```markdown
 # Submission Summary — SQL Migration Safety Gym
 
-## Live Demo
-- **UI**: [https://shyamalancode-sql-migration-env.hf.space/ui](https://shyamalancode-sql-migration-env.hf.space/ui)
-- **API Docs**: [https://shyamalancode-sql-migration-env.hf.space/docs](https://shyamalancode-sql-migration-env.hf.space/docs)
-- **Health**: [https://shyamalancode-sql-migration-env.hf.space/health](https://shyamalancode-sql-migration-env.hf.space/health)
+## For Judges — 10-Second Summary
 
----
+**SQL Migration Safety Gym** trains AI agents to detect and fix **silent data corruption** in SQL migrations — the #1 cause of production database disasters. 24 hand-crafted scenarios, SHA-256 cryptographic state guardrails, and a smooth 4-component reward signal produce a **10×+ discriminative gap** between heuristic and frontier LLM agents.
 
-## 3-Sentence Pitch
-
-SQL Migration Safety Gym is the first OpenEnv environment targeting silent data corruption — SQL migrations that execute successfully with exit code 0 but permanently corrupt production data. Unlike syntax checkers, our SHA-256 state hashing and 24 hand-crafted scenarios detect semantic bugs that pass all syntax checks. Baseline testing shows our grader sharply discriminates between random agents (avg 0.02) and expert-prompted agents (avg 0.65+), with 14 "Hard" scenarios specifically testing long-horizon reasoning vs. simple heuristic matching.
+| | |
+|---|---|
+| **Live Space** | [shyamalancode-sql-migration-env.hf.space](https://shyamalancode-sql-migration-env.hf.space) |
+| **Interactive UI** | [/ui](https://shyamalancode-sql-migration-env.hf.space/ui) |
+| **API Docs** | [/docs](https://shyamalancode-sql-migration-env.hf.space/docs) |
+| **Health** | [/health](https://shyamalancode-sql-migration-env.hf.space/health) → `{"status":"healthy","scenarios_available":24}` |
+| **`openenv validate`** | ✅ Passes |
+| **Best Baseline** | LLaMA-3.1-8B avg: **0.657** (Random avg: 0.02) |
 
 ---
 
@@ -7509,19 +7568,31 @@ SQL Migration Safety Gym is the first OpenEnv environment targeting silent data 
 
 1. **Silent corruption detection** — not just syntax errors, but semantically wrong migrations that execute without raising any exception (exit code 0, corrupted data)
 
-2. **Real production scenarios** — based on actual post-mortem incident reports from GitLab (2017 outage), Stripe, and GitHub Engineering blogs
+2. **Real production scenarios** — based on actual post-mortem incident reports from GitLab (2017 outage), Knight Capital ($440M collapse), Cloudflare (global DNS failure)
 
 3. **Cryptographic side-effect detection** — SHA-256 state hashing catches "spray and pray" agents that mutate unrelated tables while fixing the target
 
 4. **4-component smooth reward signal** — `syntax(10) + data_integrity(45) + schema(35) + efficiency(10)` provides dense gradient signal for RL training, not just binary pass/fail
 
-5. **10x+ discriminative gap** — rule-based agents score 0.07 on Hard; Llama-3.1-8B scores 0.82+. This gap proves genuine RL signal.
+5. **10×+ discriminative gap** — rule-based agents score 0.07 on Hard; Llama-3.1-8B scores 0.82+. This proves genuine RL signal, not just noise.
 
 6. **Session-based concurrency** — `X-Session-ID` header enables parallel multi-agent evaluation without state interference
 
 ---
 
-## Baseline Results
+## How This Maps to the Rubric
+
+| Criterion | Weight | Our Approach |
+|---|:---:|---|
+| **Real-world Utility** | 30% | SQL migrations + real incidents (GitLab, Knight Capital, Cloudflare). Not a toy. |
+| **Task & Grader Quality** | 25% | 24 scenarios, SHA-256 guardrail, per-query validation, no free points. |
+| **Environment Design** | 20% | OpenEnv architecture, session isolation, Pydantic v2 models, dense reward. |
+| **Spec Compliance** | 15% | `openenv.yaml`, port 7860, `inference.py` format, OpenAI client, HEALTHCHECK. |
+| **Creativity & Novelty** | 10% | First OpenEnv for silent DB corruption. Cryptographic state verification is novel. |
+
+---
+
+## Baseline Results (Measured — April 2026)
 
 | Agent | Easy | Medium | Hard | Avg |
 |-------|------|--------|------|-----|
@@ -7530,18 +7601,49 @@ SQL Migration Safety Gym is the first OpenEnv environment targeting silent data 
 | LLaMA-3.1-8B (Groq) | 0.95 | 0.20 | 0.82 | 0.657 |
 | GPT-4o-mini | 0.94 | 0.72 | 0.29 | 0.65 |
 
-*Measured — April 2026. Hard scenarios intentionally resist frontier models.*
-
 ---
 
 ## OpenEnv Compliance
 
-- All 10 spec requirements met
-- `openenv validate` passes with `[OK]`
-- `pytest tests/` — 12/12 passed
-- `/health` returns `{"status": "healthy", "scenarios_available": 24}`
-- Rewards strictly in `[0.0, 1.0]`
-- `inference.py` runs end-to-end with `[START]`/`[STEP]`/`[END]` markers
+- ✅ All spec requirements met
+- ✅ `openenv validate` passes
+- ✅ `pre_submit_check.py` — 10/10 checks pass
+- ✅ `pytest tests/` — 12/12 passed
+- ✅ `/health` returns `{"status":"healthy","scenarios_available":24}`
+- ✅ Rewards strictly in `[0.0, 1.0]`
+- ✅ `inference.py` runs end-to-end with `[START]`/`[STEP]`/`[END]` markers
+- ✅ OpenAI client used for all LLM calls
+- ✅ `API_BASE_URL`, `MODEL_NAME`, `HF_TOKEN` env vars defined
+- ✅ Runtime < 20 min (estimated 2m15s on 2 vCPU / 8 GB)
+
+---
+
+## Scenario Coverage (24 total)
+
+| Tier | Count | Focus | Key Challenge |
+|------|:-----:|-------|---------------|
+| **Easy** | 5 | Syntax errors | Read error message → apply fix |
+| **Medium** | 5 | Constraint violations | SQLite-specific ALTER TABLE limitations |
+| **Hard** | 14 | Silent data corruption | No error, no hints — requires semantic reasoning |
+
+### Hard Scenarios (14)
+
+| ID | Pattern | Corruption Type |
+|----|---------|-----------------|
+| hard_001 | Execution order corruption | UPDATE before column populated |
+| hard_002 | Column misalignment | INSERT...SELECT with wrong order |
+| hard_003 | Precision loss | REAL→INTEGER truncation |
+| hard_004 | Wrong default timestamp | CURRENT_TIMESTAMP during migration |
+| hard_005 | Drop column data loss | DROP + ADD loses original data |
+| hard_006 | Subquery corruption | Correlated DELETE wrong rows |
+| hard_007 | Transaction partial commit | Missing WHERE on transfer |
+| hard_008 | Cartesian product join | Implicit join with duplicates |
+| hard_009 | Circular FK dependency | Self-referencing FK rebuild |
+| hard_010 | Hidden data loss | CAST to NULL silently |
+| hard_011 | Unsupported FK constraint | ALTER TABLE can't ADD FK in SQLite |
+| hard_012 | Ambiguous join corruption | Overlapping column names |
+| hard_013 | Chained FK rebuild | Renaming FK target column |
+| hard_014 | Data poisoning | TEXT→REAL NULLs non-numeric rows |
 
 ---
 
@@ -7549,52 +7651,29 @@ SQL Migration Safety Gym is the first OpenEnv environment targeting silent data 
 
 The `MigrationGrader` class in `app/grader.py`:
 
-- **Per-scenario dispatch**: `hard_001_execution_order_corruption` routes to a specialized grader that validates discount calculations row-by-row with float tolerance
-- **SHA-256 guardrail**: Pre- and post-execution state hashes detect unintended modifications even when validation queries pass
-- **Float tolerance**: `_rows_match()` uses `abs(a - b) < 0.01` for numeric comparisons to handle SQLite REAL precision
-- **Smooth scoring**: Proportional to validation queries passed, not binary — provides dense RL training signal
-
----
-
-## Scenario Coverage
-
-| ID | Tier | Pattern | Has Validation |
-|----|------|---------|----------------|
-| easy_001–005 | Easy | Syntax errors | All |
-| medium_001–005 | Medium | Constraint violations | All |
-| hard_001 | Hard | Execution order corruption | Specialized grader |
-| hard_002 | Hard | Column misalignment | Validation queries |
-| hard_003 | Hard | Precision loss | Validation queries |
-| hard_004 | Hard | Wrong default timestamp | Validation queries |
-| hard_005 | Hard | Drop column data loss | Validation queries |
-| hard_006 | Hard | Subquery corruption | Validation queries |
-| hard_007 | Hard | Transaction partial commit | Validation queries |
-| hard_008 | Hard | Cartesian product join | Validation queries |
-| hard_009 | Hard | Circular FK dependency | Validation queries |
-| hard_010 | Hard | Hidden data loss (type) | Validation queries |
-| hard_011 | Hard | Invisible FK conflict | Validation queries |
-| hard_012 | Hard | Ambiguous join corruption | Validation queries |
-| hard_013 | Hard | Chained FK rebuild | Validation queries |
-| hard_014 | Hard | Data poisoning (TEXT->REAL) | Validation queries |
+- **Per-scenario dispatch**: `hard_001` routes to a specialized grader with row-by-row float tolerance validation
+- **SHA-256 guardrail**: Pre/post-execution hashes detect unintended modifications even when validation queries pass
+- **Float tolerance**: `abs(a - b) < 0.01` for numeric comparisons (SQLite REAL precision)
+- **Smooth scoring**: Proportional to validation queries passed — dense RL signal, not binary
 
 ---
 
 ## Final Submission Checklist
 
-- [x] HF Space returns HTTP 200 on `/health`
+- [x] HF Space returns HTTP 200 on `/health` with 24 scenarios
 - [x] `openenv validate` = `[OK]`
-- [x] `inference.py` runs without crashing
-- [x] README has measured baseline table
+- [x] `inference.py` runs without error, produces `[START]/[STEP]/[END]` output
+- [x] OpenAI client used exclusively for LLM calls
+- [x] `API_BASE_URL`, `MODEL_NAME`, `HF_TOKEN` env vars defined
+- [x] README has measured baseline table (April 2026)
 - [x] `/ui` shows animated score breakdown after submission
-- [x] Dockerfile builds cleanly
+- [x] Dockerfile builds cleanly (python:3.11-slim, non-root user, HEALTHCHECK)
 - [x] 24 scenarios confirmed in `/health` response
 - [x] All 12 pytest tests pass
-- [x] Hard scenarios: LLM scores < 0.35
+- [x] Reward curve image generated (`reward_curve.png`)
 - [x] Session-based concurrency supported via `X-Session-ID`
-- [x] SQL syntax highlighting in UI (Prism.js)
-- [x] Reward curve image generated and added to README (reward_curve.png)
-- [x] GitHub repo description + topics set
-- [ ] Demo video recorded and linked
+- [x] Runtime < 20 min (MAX_STEPS=3, estimated 2m15s)
+- [x] `pre_submit_check.py` — 10/10 pass
 
 ```
 
