@@ -32,8 +32,12 @@ from openai import OpenAI
 # ============================================================================
 API_BASE_URL   = os.environ.get("API_BASE_URL",    "https://api.groq.com/openai/v1").strip('"\'')
 MODEL_NAME     = os.environ.get("MODEL_NAME",      "llama-3.1-8b-instant").strip('"\'')
-HF_TOKEN       = os.environ.get("HF_TOKEN",        "").strip('"\'')
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY",  HF_TOKEN).strip('"\'')
+HF_TOKEN       = os.environ.get("HF_TOKEN")
+if HF_TOKEN:
+    HF_TOKEN = HF_TOKEN.strip('"\'')
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY",  HF_TOKEN)
+if OPENAI_API_KEY:
+    OPENAI_API_KEY = OPENAI_API_KEY.strip('"\'')
 ENV_URL        = os.environ.get("ENV_URL",         "http://localhost:7860").strip('"\'')
 
 BENCHMARK      = "sql-migration-env"
