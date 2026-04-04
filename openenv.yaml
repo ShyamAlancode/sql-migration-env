@@ -6,7 +6,7 @@ description: >
   difficulty tiers. Features SHA-256 cryptographic state verification,
   silent data corruption detection, and smooth reward shaping.
 author: "ShyamAlancode"
-entry_point: "server.app:app"
+entry_point: "app.main:app"
 port: 7860
 tags:
   - openenv

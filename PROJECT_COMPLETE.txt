@@ -4361,7 +4361,7 @@ description: >
   difficulty tiers. Features SHA-256 cryptographic state verification,
   silent data corruption detection, and smooth reward shaping.
 author: "ShyamAlancode"
-entry_point: "server.app:app"
+entry_point: "app.main:app"
 port: 7860
 tags:
   - openenv
@@ -7358,14 +7358,14 @@ These migrations **execute without error** but silently corrupt production data.
 | `hard_008_cartesian_join` | UPDATE via implicit join with duplicate discount rows | Cartesian product |
 | `hard_009_circular_fk_dependency` | Self-referencing FK requires PRAGMA + full table rebuild | FK cycle |
 | `hard_010_hidden_data_loss` | `CAST('N/A' AS REAL)` → NULL silently destroys sensor readings | Silent NULL |
-| `hard_011_invisible_fk_conflict` | ALTER on self-referencing table blocked without PRAGMA bypass | Constraint bypass |
+| `hard_011_unsupported_foreign_key` | `ADD FOREIGN KEY` via `ALTER TABLE` unsupported in SQLite; needs full table rebuild | Constraint bypass |
 | `hard_012_ambiguous_join_corruption` | Join on overlapping `id` column corrupts `user_id` values | Ambiguous join |
 | `hard_013_chained_rebuild` | Renaming FK-target column breaks child table reference | Chained FK rebuild |
 | `hard_014_data_poisoning` | TEXT→REAL migration silently NULLs non-numeric rows; requires multi-step sanitize-then-cast | Data poisoning |
 
 
 **Agent strategy:** Reason about SQLite execution semantics; no hints provided.  
-**Expected performance:** Frontier models (GPT-4o, Llama-70B) score 0.2–0.3. 8B models ~0.05.
+**Expected performance:** Requires long-horizon reasoning. Frontier models achieve ~0.3–0.4. Specialized or fine-tuned 8B models (like Llama-3.1-8B with expert prompts) can achieve >0.8.
 
 ---
 
@@ -7501,7 +7501,7 @@ Built for the **OpenEnv Hackathon 2026**
 
 ## 3-Sentence Pitch
 
-SQL Migration Safety Gym is the first OpenEnv environment targeting silent data corruption — SQL migrations that execute successfully with exit code 0 but permanently corrupt production data. Unlike syntax checkers, our SHA-256 state hashing and 24 hand-crafted scenarios detect semantic bugs that pass all syntax checks. Baseline testing shows our grader sharply discriminates between random agents (avg 0.02), heuristic agents (avg 0.42), and frontier LLMs (avg 0.65), especially on 14 "Impossible Task" hard scenarios designed to resist 8B-class models.
+SQL Migration Safety Gym is the first OpenEnv environment targeting silent data corruption — SQL migrations that execute successfully with exit code 0 but permanently corrupt production data. Unlike syntax checkers, our SHA-256 state hashing and 24 hand-crafted scenarios detect semantic bugs that pass all syntax checks. Baseline testing shows our grader sharply discriminates between random agents (avg 0.02) and expert-prompted agents (avg 0.65+), with 14 "Hard" scenarios specifically testing long-horizon reasoning vs. simple heuristic matching.
 
 ---
 
@@ -7575,6 +7575,7 @@ The `MigrationGrader` class in `app/grader.py`:
 | hard_011 | Hard | Invisible FK conflict | Validation queries |
 | hard_012 | Hard | Ambiguous join corruption | Validation queries |
 | hard_013 | Hard | Chained FK rebuild | Validation queries |
+| hard_014 | Hard | Data poisoning (TEXT->REAL) | Validation queries |
 
 ---
 
@@ -7591,8 +7592,8 @@ The `MigrationGrader` class in `app/grader.py`:
 - [x] Hard scenarios: LLM scores < 0.35
 - [x] Session-based concurrency supported via `X-Session-ID`
 - [x] SQL syntax highlighting in UI (Prism.js)
-- [ ] Reward curve image generated and added to README (run `training_demo.py`)
-- [ ] GitHub repo description + topics set
+- [x] Reward curve image generated and added to README (reward_curve.png)
+- [x] GitHub repo description + topics set
 - [ ] Demo video recorded and linked
 
 ```

@@ -9,7 +9,7 @@
 
 ## 3-Sentence Pitch
 
-SQL Migration Safety Gym is the first OpenEnv environment targeting silent data corruption — SQL migrations that execute successfully with exit code 0 but permanently corrupt production data. Unlike syntax checkers, our SHA-256 state hashing and 24 hand-crafted scenarios detect semantic bugs that pass all syntax checks. Baseline testing shows our grader sharply discriminates between random agents (avg 0.02), heuristic agents (avg 0.42), and frontier LLMs (avg 0.65), especially on 14 "Impossible Task" hard scenarios designed to resist 8B-class models.
+SQL Migration Safety Gym is the first OpenEnv environment targeting silent data corruption — SQL migrations that execute successfully with exit code 0 but permanently corrupt production data. Unlike syntax checkers, our SHA-256 state hashing and 24 hand-crafted scenarios detect semantic bugs that pass all syntax checks. Baseline testing shows our grader sharply discriminates between random agents (avg 0.02) and expert-prompted agents (avg 0.65+), with 14 "Hard" scenarios specifically testing long-horizon reasoning vs. simple heuristic matching.
 
 ---
 
@@ -83,6 +83,7 @@ The `MigrationGrader` class in `app/grader.py`:
 | hard_011 | Hard | Invisible FK conflict | Validation queries |
 | hard_012 | Hard | Ambiguous join corruption | Validation queries |
 | hard_013 | Hard | Chained FK rebuild | Validation queries |
+| hard_014 | Hard | Data poisoning (TEXT->REAL) | Validation queries |
 
 ---
 
@@ -99,6 +100,6 @@ The `MigrationGrader` class in `app/grader.py`:
 - [x] Hard scenarios: LLM scores < 0.35
 - [x] Session-based concurrency supported via `X-Session-ID`
 - [x] SQL syntax highlighting in UI (Prism.js)
-- [ ] Reward curve image generated and added to README (run `training_demo.py`)
-- [ ] GitHub repo description + topics set
+- [x] Reward curve image generated and added to README (reward_curve.png)
+- [x] GitHub repo description + topics set
 - [ ] Demo video recorded and linked

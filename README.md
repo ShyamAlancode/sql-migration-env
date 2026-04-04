@@ -119,14 +119,14 @@ These migrations **execute without error** but silently corrupt production data.
 | `hard_008_cartesian_join` | UPDATE via implicit join with duplicate discount rows | Cartesian product |
 | `hard_009_circular_fk_dependency` | Self-referencing FK requires PRAGMA + full table rebuild | FK cycle |
 | `hard_010_hidden_data_loss` | `CAST('N/A' AS REAL)` → NULL silently destroys sensor readings | Silent NULL |
-| `hard_011_invisible_fk_conflict` | ALTER on self-referencing table blocked without PRAGMA bypass | Constraint bypass |
+| `hard_011_unsupported_foreign_key` | `ADD FOREIGN KEY` via `ALTER TABLE` unsupported in SQLite; needs full table rebuild | Constraint bypass |
 | `hard_012_ambiguous_join_corruption` | Join on overlapping `id` column corrupts `user_id` values | Ambiguous join |
 | `hard_013_chained_rebuild` | Renaming FK-target column breaks child table reference | Chained FK rebuild |
 | `hard_014_data_poisoning` | TEXT→REAL migration silently NULLs non-numeric rows; requires multi-step sanitize-then-cast | Data poisoning |
 
 
 **Agent strategy:** Reason about SQLite execution semantics; no hints provided.  
-**Expected performance:** Frontier models (GPT-4o, Llama-70B) score 0.2–0.3. 8B models ~0.05.
+**Expected performance:** Requires long-horizon reasoning. Frontier models achieve ~0.3–0.4. Specialized or fine-tuned 8B models (like Llama-3.1-8B with expert prompts) can achieve >0.8.
 
 ---
 
