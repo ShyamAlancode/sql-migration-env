@@ -95,13 +95,13 @@ async def root():
     """Redirect to UI"""
     return {"message": "SQL Migration Safety Gym", "ui": "/ui", "docs": "/docs"}
 
-# CORS for HF Spaces
+# CORS for HF Spaces and Portal Judges
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*", "X-Session-ID", "Content-Type", "Authorization"],
     expose_headers=["X-Session-ID"],
 )
 
@@ -149,16 +149,17 @@ class ResetResponse(BaseModel):
     observation: Observation
     done: bool = False
     reward: Optional[float] = None
+    # Alias for older validator versions
+    @property
+    def obs(self):
+        return self.observation
+    
+    model_config = ConfigDict(extra="allow")
 
 
-@app.post("/reset",
-          summary="Reset SQL Environment",
-          response_model=ResetResponse,
-          description=(
-              "Initializes the SQL sandbox for a given task_id (easy/medium/hard) or specific "
-              "scenario_id. Returns the OpenEnv-spec response: {observation, done, reward}. "
-              "Optionally provide X-Session-ID header for isolated concurrent sessions."
-          ))
+@app.post("/reset", summary="Reset SQL Environment", response_model=ResetResponse)
+@app.post("/reset/", response_model=ResetResponse) # Handle trailing slash
+@app.get("/reset", response_model=ResetResponse)  # Fallback for unexpected GET
 async def reset_environment(
     response: Response,
     request: ResetRequest = ResetRequest(),
