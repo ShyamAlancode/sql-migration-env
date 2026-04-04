@@ -167,7 +167,8 @@ HARD scenarios carry NO hints and produce NO error messages. An agent receiving 
 │   ├── __init__.py
 │   ├── test_grader.py
 │   ├── test_scenarios.py
-│   └── test_endpoints.py
+│   ├── test_endpoints.py
+│   └── test_impossible_tasks.py
 ├── inference.py             (Spec-compliant LLM agent [START]/[STEP]/[END])
 ├── baselines.py             (Random vs Heuristic vs LLM baselines)
 ├── training_demo.py         (Reward curve generator with rate-limit buffer)
@@ -178,6 +179,7 @@ HARD scenarios carry NO hints and produce NO error messages. An agent receiving 
 ├── requirements.txt
 ├── openenv.yaml             (Official manifest)
 ├── pyproject.toml
+├── uv.lock                  (Dependency lockfile)
 ├── README.md
 ├── SUBMISSION.md
 ├── LICENSE (MIT)
@@ -207,14 +209,17 @@ HARD scenarios carry NO hints and produce NO error messages. An agent receiving 
         "tests/test_grader.py",
         "tests/test_scenarios.py",
         "tests/test_endpoints.py",
+        "tests/test_impossible_tasks.py",
         "Dockerfile",
         "requirements.txt",
         "openenv.yaml",
         "pyproject.toml",
+        "uv.lock",
         "README.md",
         "SUBMISSION.md",
         "LICENSE",
         ".gitignore",
+        "generate_report.py",
     ]
 
     for i, file_path in enumerate(files_to_include, 1):
