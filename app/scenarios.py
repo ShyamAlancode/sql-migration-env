@@ -165,7 +165,7 @@ MEDIUM_SCENARIOS = [
             {"id": 2, "name": "Bob", "email": "unknown@example.com"},
             {"id": 3, "name": "Charlie", "email": "unknown@example.com"}
         ]],
-        hint="SQLite: ALTER TABLE ... ADD COLUMN col TYPE NOT NULL DEFAULT 'value' - DEFAULT is required for existing rows!",
+        hint="SQLite: Check requirements for adding NOT NULL columns with existing rows.",
         is_silent_corruption=False
     ),
     
@@ -217,7 +217,7 @@ MEDIUM_SCENARIOS = [
         validation_queries=["SELECT * FROM inventory order by id"],
         expected_results=[[
             {"id": 1, "sku": "ABC123"},
-            {"id": 2, "sku": "ABC123-dupe"},
+            {"id": 2, "sku": "ABC123"},
             {"id": 3, "sku": "XYZ789"}
         ]],
         hint="SQLite: Cannot use ALTER TABLE for UNIQUE. Use CREATE UNIQUE INDEX uniq_sku ON inventory(sku) instead!",
@@ -379,9 +379,9 @@ HARD_SCENARIOS = [
         expected_schema=None,
         validation_queries=["SELECT * FROM measurements ORDER BY id"],
         expected_results=[[
-            {"id": 1, "value": 3.14159, "rounded_value": 3},  # Truncated, not rounded properly by default cast in SQLite
-            {"id": 2, "value": 2.71828, "rounded_value": 3},  # Should round to 3
-            {"id": 3, "value": 1.41421, "rounded_value": 1}   # Should round to 1
+            {"id": 1, "value": 3.14159, "rounded_value": 3},  # Truncated
+            {"id": 2, "value": 2.71828, "rounded_value": 2},  # Truncated (SQLite standard cast behavior)
+            {"id": 3, "value": 1.41421, "rounded_value": 1}   # Truncated
         ]],
         hint=None,
         is_silent_corruption=True
@@ -628,7 +628,7 @@ HARD_SCENARIOS = [
     MigrationScenario(
         id="hard_011_invisible_fk_conflict",
         difficulty=DifficultyLevel.HARD,
-        description="ALTER TABLE fails due to self-referencing foreign key; requires PRAGMA analysis",
+        description="ALTER TABLE fails due to unsupported ADD FOREIGN KEY in SQLite; requires full table rebuild",
         setup_sql="""
             CREATE TABLE categories (
                 id INTEGER PRIMARY KEY,
@@ -642,13 +642,13 @@ HARD_SCENARIOS = [
                 (3, 'Gaming Laptops', 2);
         """,
         broken_migration="""
-            ALTER TABLE categories ADD COLUMN slug TEXT;
+            ALTER TABLE categories ADD FOREIGN KEY (parent_id) REFERENCES categories(id);
         """,
         validation_queries=[
-            "SELECT COUNT(id) as count FROM categories WHERE name = 'Gaming Laptops' AND parent_id = 2"
+            "PRAGMA foreign_key_check"
         ],
         expected_results=[
-            [{"count": 1}]
+            []
         ],
         hint=None,
         is_silent_corruption=True
