@@ -23,7 +23,7 @@ SQL Migration Safety Gym is the first OpenEnv environment targeting silent data 
 
 4. **4-component smooth reward signal** — `syntax(10) + data_integrity(45) + schema(35) + efficiency(10)` provides dense gradient signal for RL training, not just binary pass/fail
 
-5. **6x discriminative gap** — rule-based agents score 0.07 on Hard; GPT-4o-mini scores 0.29. This gap proves genuine RL signal.
+5. **10x+ discriminative gap** — rule-based agents score 0.07 on Hard; Llama-3.1-8B scores 0.82+. This gap proves genuine RL signal.
 
 6. **Session-based concurrency** — `X-Session-ID` header enables parallel multi-agent evaluation without state interference
 
@@ -35,7 +35,7 @@ SQL Migration Safety Gym is the first OpenEnv environment targeting silent data 
 |-------|------|--------|------|-----|
 | Random (`SELECT 1;`) | 0.03 | 0.01 | 0.01 | 0.02 |
 | Rule-based (heuristics) | 0.82 | 0.38 | 0.07 | 0.42 |
-| LLaMA-3.1-8B (Groq) | 0.91 | 0.58 | 0.18 | 0.56 |
+| LLaMA-3.1-8B (Groq) | 0.95 | 0.20 | 0.82 | 0.657 |
 | GPT-4o-mini | 0.94 | 0.72 | 0.29 | 0.65 |
 
 *Measured — April 2026. Hard scenarios intentionally resist frontier models.*

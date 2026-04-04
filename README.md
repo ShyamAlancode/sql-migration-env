@@ -49,7 +49,7 @@ The environment produces measurable, significant gaps across agent competencies:
 |-------|:----:|:------:|:----:|:-------:|
 | **Random (`SELECT 1;`)** | 0.03 | 0.01 | 0.01 | **0.02** |
 | **Rule-based (heuristics)** | 0.82 | 0.38 | 0.07 | **0.42** |
-| **Llama-3.1-8B (Groq)** | 0.91 | 0.58 | 0.18 | **0.56** |
+| **Llama-3.1-8B (Groq)** | 0.95 | 0.20 | 0.82 | **0.657** |
 | **GPT-4o-mini** | 0.94 | 0.72 | 0.29 | **0.65** |
 
 > The **6× gap** between rule-based and frontier LLM agents on Hard tasks proves genuine discriminative signal. Hard tasks **cannot** be solved by matching error messages — they require deep reasoning about SQL execution semantics.
